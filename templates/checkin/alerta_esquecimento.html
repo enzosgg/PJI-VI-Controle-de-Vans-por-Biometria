@@ -1,0 +1,91 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}ALERTA - Possível Esquecimento{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card border-danger">
+            <div class="card-header bg-danger text-white text-center">
+                <h2 class="mb-0">
+                    <i class="fas fa-exclamation-triangle"></i> ALERTA DE SEGURANÇA
+                </h2>
+            </div>
+            <div class="card-body text-center">
+                <div class="alert alert-danger">
+                    <i class="fas fa-bell fa-4x mb-3"></i>
+                    <h3>{{ divergencia }} aluno(s) não fizeram check-out!</h3>
+                    <p class="lead">Existe a possibilidade de um aluno ter sido esquecido!</p>
+                </div>
+                
+                <div class="row mt-4">
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-body">
+                                <i class="fas fa-van fa-2x text-primary"></i>
+                                <h5>Verifique a VAN</h5>
+                                <p>Procure em todos os bancos e cantos do veículo</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-body">
+                                <i class="fas fa-school fa-2x text-warning"></i>
+                                <h5>Verifique a ESCOLA</h5>
+                                <p>Confirme se algum aluno ficou na unidade</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="alert alert-warning mt-4">
+                    <strong>Instruções:</strong>
+                    <ol class="text-start mt-2">
+                        <li>Pare o veículo em local seguro</li>
+                        <li>Verifique cuidadosamente toda a van</li>
+                        <li>Entre em contato com a escola</li>
+                        <li>Ligue para os responsáveis dos alunos pendentes</li>
+                        <li>Só finalize a rota após confirmar que todos estão seguros</li>
+                    </ol>
+                </div>
+                
+                <div class="d-grid gap-2 mt-4">
+                    <button class="btn btn-danger btn-lg" onclick="emitirAlerta('Verificação necessária! Possível esquecimento de aluno!')">
+                        <i class="fas fa-bell"></i> EMITIR ALERTA SONORO
+                    </button>
+                    <a href="{% url 'checkout_escola' sessao.id %}" class="btn btn-warning btn-lg">
+                        <i class="fas fa-arrow-left"></i> Voltar para Check-out
+                    </a>
+                    <form method="post" style="display: inline;">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-danger btn-lg">
+                            <i class="fas fa-flag-checkered"></i> Finalizar Mesmo com Divergência
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Emitir alerta sonoro automaticamente ao carregar a página
+document.addEventListener('DOMContentLoaded', function() {
+    emitirAlerta('ATENÇÃO! {{ divergencia }} aluno(s) sem check-out! Verifique imediatamente a van e a escola!');
+    
+    // Tentar tocar som de alerta se disponível
+    var audio = new Audio();
+    audio.src = 'data:audio/wav;base64,U3RlcmVvIGRlIGFsZXJ0YQ==';
+    audio.play().catch(function(e) {
+        console.log('Som não disponível');
+    });
+    
+    // Vibrar se for mobile
+    if (navigator.vibrate) {
+        navigator.vibrate([1000, 500, 1000, 500, 1000]);
+    }
+});
+</script>
+{% endblock %}

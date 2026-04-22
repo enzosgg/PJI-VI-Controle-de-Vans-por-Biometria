@@ -1,0 +1,52 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Nova Ocorrência{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header bg-warning text-white">
+                <h4 class="mb-0"><i class="fas fa-exclamation-triangle"></i> Registrar Ocorrência</h4>
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+                    
+                    <div class="mb-3">
+                        <label for="tipo" class="form-label">Tipo de Ocorrência</label>
+                        <select class="form-control" id="tipo" name="tipo" required>
+                            <option value="ALERTA_GERAL">Alerta Geral</option>
+                            <option value="ATRASO">Atraso na Rota</option>
+                            <option value="PROBLEMA_VAN">Problema com o Veículo</option>
+                            <option value="OUTRO">Outro</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="telefone" class="form-label">Telefone para Alerta (SMS)</label>
+                        <input type="tel" class="form-control" id="telefone" name="telefone" 
+                               placeholder="(11) 99999-9999">
+                        <small class="text-muted">Opcional - enviar SMS de alerta</small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="mensagem" class="form-label">Descrição da Ocorrência</label>
+                        <textarea class="form-control" id="mensagem" name="mensagem" rows="5" required></textarea>
+                    </div>
+                    
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-warning btn-lg">
+                            <i class="fas fa-save"></i> Registrar Ocorrência
+                        </button>
+                        <a href="{% url 'lista_ocorrencias' %}" class="btn btn-secondary">
+                            <i class="fas fa-arrow-left"></i> Voltar
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

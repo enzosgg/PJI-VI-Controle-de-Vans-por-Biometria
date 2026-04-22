@@ -1,0 +1,136 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Dashboard - VanCheck{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="alert alert-success">
+            <h4><i class="fas fa-truck"></i> Painel do Motorista</h4>
+            <p>Bem-vindo, {{ user.get_full_name|default:user.username }}!</p>
+            <hr>
+            <small>Use os botões abaixo para gerenciar as rotas e check-ins.</small>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-6 mb-3">
+        <div class="card h-100 border-primary">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0"><i class="fas fa-play-circle"></i> Rotas Ativas</h5>
+            </div>
+            <div class="card-body">
+                {% if rotas_ativas %}
+                    <div class="list-group">
+                        {% for rota in rotas_ativas %}
+                        <div class="list-group-item">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <strong>{{ rota.nome_rota }}</strong><br>
+                                    <small class="text-muted">
+                                        {{ rota.get_tipo_display }} | 
+                                        Início: {{ rota.data_inicio|date:"H:i" }}
+                                    </small><br>
+                                    <small class="text-info">
+                                        Check-in: {{ rota.get_total_checkins }} | 
+                                        Check-out: {{ rota.get_total_checkouts }}
+                                    </small>
+                                </div>
+                                <div class="btn-group-vertical">
+                                    <a href="{% url 'checkin_aluno' rota.id %}" class="btn btn-sm btn-success mb-1">
+                                        <i class="fas fa-sign-in-alt"></i> Check-in
+                                    </a>
+                                    <a href="{% url 'checkout_escola' rota.id %}" class="btn btn-sm btn-warning mb-1">
+                                        <i class="fas fa-sign-out-alt"></i> Check-out
+                                    </a>
+                                    <a href="{% url 'finalizar_rota' rota.id %}" class="btn btn-sm btn-danger">
+                                        <i class="fas fa-stop"></i> Finalizar
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle"></i> Nenhuma rota ativa no momento.
+                    </div>
+                {% endif %}
+                
+                <div class="d-grid mt-3">
+                    <a href="{% url 'iniciar_rota' %}" class="btn btn-primary btn-lg">
+                        <i class="fas fa-plus-circle"></i> Iniciar Nova Rota
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6 mb-3">
+        <div class="card h-100 border-info">
+            <div class="card-header bg-info text-white">
+                <h5 class="mb-0"><i class="fas fa-history"></i> Últimas Rotas Finalizadas</h5>
+            </div>
+            <div class="card-body">
+                {% if rotas_finalizadas %}
+                    <div class="list-group">
+                        {% for rota in rotas_finalizadas %}
+                        <div class="list-group-item">
+                            <div class="d-flex justify-content-between">
+                                <div>
+                                    <strong>{{ rota.nome_rota }}</strong><br>
+                                    <small class="text-muted">
+                                        {{ rota.data_inicio|date:"d/m/Y H:i" }} - {{ rota.data_fim|date:"H:i" }}
+                                    </small>
+                                </div>
+                                <div class="text-end">
+                                    <span class="badge {% if rota.get_divergencia == 0 %}bg-success{% else %}bg-danger{% endif %}">
+                                        {{ rota.get_total_checkins }} / {{ rota.get_total_checkouts }}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle"></i> Nenhuma rota finalizada.
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-3">
+    <div class="col-md-4 mb-3">
+        <div class="card">
+            <div class="card-body text-center">
+                <i class="fas fa-fingerprint fa-3x mb-2 text-primary"></i>
+                <h5>Reconhecimento de Palma</h5>
+                <p>Check-in rápido com biometria</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4 mb-3">
+        <div class="card">
+            <div class="card-body text-center">
+                <i class="fas fa-qrcode fa-3x mb-2 text-success"></i>
+                <h5>QR Code</h5>
+                <p>Escaneie o código do aluno</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4 mb-3">
+        <div class="card">
+            <div class="card-body text-center">
+                <i class="fas fa-exclamation-triangle fa-3x mb-2 text-warning"></i>
+                <h5>Alertas Automáticos</h5>
+                <p>Alerta sonoro e luminoso</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

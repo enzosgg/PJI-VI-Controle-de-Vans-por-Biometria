@@ -1,0 +1,86 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Finalizar Rota - {{ sessao.nome_rota }}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header bg-danger text-white">
+                <h4 class="mb-0"><i class="fas fa-flag-checkered"></i> Finalizar Rota</h4>
+            </div>
+            <div class="card-body">
+                <h5 class="text-center">{{ sessao.nome_rota }}</h5>
+                <p class="text-center text-muted">
+                    {{ sessao.get_tipo_display }} | 
+                    Início: {{ sessao.data_inicio|date:"d/m/Y H:i" }}
+                </p>
+                
+                <div class="alert alert-info">
+                    <strong>Resumo da Rota:</strong>
+                    <table class="table table-borderless mt-2">
+                        <tr>
+                            <td>Total de Check-ins:</td>
+                            <td class="text-end fw-bold">{{ total_checkins }}</td>
+                        </tr>
+                        <tr>
+                            <td>Total de Check-outs:</td>
+                            <td class="text-end fw-bold">{{ total_checkouts }}</td>
+                        </tr>
+                        <tr class="{% if divergencia > 0 %}table-danger{% endif %}">
+                            <td><strong>Divergência (Pendentes):</strong></td>
+                            <td class="text-end fw-bold">
+                                {% if divergencia > 0 %}
+                                    <span class="text-danger">{{ divergencia }}</span>
+                                {% else %}
+                                    <span class="text-success">0</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    </table>
+                </div>
+                
+                {% if divergencia > 0 %}
+                <div class="alert alert-danger text-center">
+                    <i class="fas fa-exclamation-triangle fa-2x"></i>
+                    <h5 class="mt-2">ATENÇÃO!</h5>
+                    <p>{{ divergencia }} aluno(s) não fizeram check-out!</p>
+                    <p><strong>Verifique se há alunos esquecidos na van ou na escola!</strong></p>
+                    <button class="btn btn-danger mt-2" onclick="emitirAlerta('Possível esquecimento de aluno! Verifique a van e a escola imediatamente!')">
+                        <i class="fas fa-bell"></i> Emitir Alerta
+                    </button>
+                </div>
+                {% endif %}
+                
+                <form method="post" class="mt-3">
+                    {% csrf_token %}
+                    <div class="d-grid gap-2">
+                        {% if divergencia == 0 %}
+                        <button type="submit" class="btn btn-success btn-lg">
+                            <i class="fas fa-check-circle"></i> Confirmar Finalização
+                        </button>
+                        {% else %}
+                        <button type="submit" class="btn btn-danger btn-lg">
+                            <i class="fas fa-exclamation-triangle"></i> Finalizar com Divergência
+                        </button>
+                        {% endif %}
+                        <a href="{% url 'checkout_escola' sessao.id %}" class="btn btn-secondary btn-lg">
+                            <i class="fas fa-arrow-left"></i> Voltar para Check-out
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function emitirAlerta(mensagem) {
+    alert('⚠️ ' + mensagem);
+    if (navigator.vibrate) {
+        navigator.vibrate([500, 300, 500]);
+    }
+}
+</script>
+{% endblock %}

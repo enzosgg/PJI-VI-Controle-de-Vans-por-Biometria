@@ -1,0 +1,56 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Lista de Ocorrências{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h2><i class="fas fa-exclamation-triangle"></i> Ocorrências</h2>
+            <a href="{% url 'criar_ocorrencia' %}" class="btn btn-warning">
+                <i class="fas fa-plus"></i> Nova Ocorrência
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-secondary text-white">
+                <h5 class="mb-0">Histórico de Ocorrências</h5>
+            </div>
+            <div class="card-body">
+                {% if ocorrencias %}
+                    <div class="list-group">
+                        {% for ocorrencia in ocorrencias %}
+                        <div class="list-group-item">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div>
+                                    <strong>{{ ocorrencia.data|default:ocorrencia.data_hora }}</strong>
+                                    <span class="badge bg-warning ms-2">{{ ocorrencia.tipo }}</span>
+                                    <p class="mt-2 mb-1">{{ ocorrencia.mensagem }}</p>
+                                    {% if ocorrencia.telefone_destino %}
+                                    <small class="text-muted">SMS enviado para: {{ ocorrencia.telefone_destino }}</small>
+                                    {% endif %}
+                                </div>
+                                <div>
+                                    <span class="badge {% if ocorrencia.enviado %}bg-success{% else %}bg-secondary{% endif %}">
+                                        {% if ocorrencia.enviado %}Enviado{% else %}Pendente{% endif %}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="alert alert-info text-center">
+                        <i class="fas fa-info-circle"></i> Nenhuma ocorrência registrada.
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

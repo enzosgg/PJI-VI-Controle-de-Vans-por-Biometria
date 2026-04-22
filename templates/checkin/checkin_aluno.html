@@ -1,0 +1,253 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Check-in - {{ sessao.nome_rota }}{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="alert alert-info">
+            <h4><i class="fas fa-route"></i> {{ sessao.nome_rota }}</h4>
+            <p>Tipo: {{ sessao.get_tipo_display }} | Início: {{ sessao.data_inicio|date:"H:i:s" }}</p>
+            <p>Check-ins realizados: <strong>{{ total_checkins }}</strong></p>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-6">
+        <!-- Card de Reconhecimento de Palma -->
+        <div class="card mb-3">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0"><i class="fas fa-hand-peace"></i> Reconhecimento de Palma</h5>
+            </div>
+            <div class="card-body text-center">
+                <div id="palmScanner" class="mb-3">
+                    <div class="border rounded p-4" style="background: #f8f9fa;">
+                        <i class="fas fa-hand-peace fa-4x mb-3 text-primary"></i>
+                        <p>Posicione a palma da mão para reconhecimento</p>
+                        
+                        <!-- Botão de scanear mão (desabilitado por enquanto) -->
+                        <button type="button" class="btn btn-primary btn-lg" 
+                                onclick="scanearPalma()" 
+                                {% if not sensor_ativo %}disabled{% endif %}>
+                            <i class="fas fa-fingerprint"></i> Scanear Mão
+                        </button>
+                        
+                        {% if not sensor_ativo %}
+                        <div class="alert alert-warning mt-3 mb-0">
+                            <i class="fas fa-info-circle"></i>
+                            <small>Funcionalidade em desenvolvimento. Em breve disponível com sensor biométrico.</small>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <!-- Placeholder para câmera (será ativado depois) -->
+                <div id="cameraPlaceholder" style="display: none;">
+                    <video id="videoCamera" width="100%" height="auto" autoplay></video>
+                    <button class="btn btn-success mt-2" onclick="capturarImagem()">
+                        <i class="fas fa-camera"></i> Capturar
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Card de QR Code -->
+        <div class="card mb-3">
+            <div class="card-header bg-success text-white">
+                <h5 class="mb-0"><i class="fas fa-qrcode"></i> QR Code</h5>
+            </div>
+            <div class="card-body text-center">
+                <input type="text" id="qrcode_input" class="form-control mb-3" placeholder="Código do QR Code">
+                <button class="btn btn-info" onclick="lerQRCode()">
+                    <i class="fas fa-camera"></i> Escanear QR Code
+                </button>
+            </div>
+        </div>
+        
+        <!-- Card de Registro Manual -->
+        <div class="card">
+            <div class="card-header bg-secondary text-white">
+                <h5 class="mb-0"><i class="fas fa-list"></i> Registro Manual</h5>
+            </div>
+            <div class="card-body">
+                <form method="post" id="formManual">
+                    {% csrf_token %}
+                    <input type="hidden" name="metodo" value="MANUAL">
+                    <div class="mb-2">
+                        <input type="text" name="aluno_id" class="form-control" placeholder="ID do Aluno (opcional)">
+                    </div>
+                    <div class="mb-2">
+                        <input type="text" name="nome_aluno" class="form-control" placeholder="Nome do Aluno" required>
+                    </div>
+                    <div class="mb-2">
+                        <input type="text" name="responsavel" class="form-control" placeholder="Nome do Responsável">
+                    </div>
+                    <div class="mb-2">
+                        <input type="tel" name="telefone" class="form-control" placeholder="Telefone do Responsável">
+                    </div>
+                    <button type="submit" class="btn btn-secondary w-100">
+                        <i class="fas fa-save"></i> Registrar Check-in
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0"><i class="fas fa-list"></i> Alunos Registrados</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Nome</th>
+                                <th>Hora</th>
+                                <th>Método</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for registro in registros %}
+                            <tr>
+                                <td>{{ registro.aluno_id_temporario|slice:":8" }}</td>
+                                <td>{{ registro.nome_aluno }}</td>
+                                <td>{{ registro.horario_checkin|date:"H:i:s" }}</td>
+                                <td>
+                                    {% if registro.metodo_checkin == 'PALMA' %}
+                                        <i class="fas fa-hand-peace text-primary" title="Palma"></i>
+                                    {% elif registro.metodo_checkin == 'QRCODE' %}
+                                        <i class="fas fa-qrcode text-success" title="QR Code"></i>
+                                    {% else %}
+                                        <i class="fas fa-pen text-secondary" title="Manual"></i>
+                                    {% endif %}
+                                </td>
+                                <td>{% if registro.checkout_realizado %}✅{% else %}⏳{% endif %}</td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="5" class="text-center">Nenhum aluno registrado</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Variável de controle - será alterada quando o sensor estiver disponível
+var sensorAtivo = false;
+
+function scanearPalma() {
+    if (!sensorAtivo) {
+        alert('Funcionalidade em desenvolvimento!\n\nEm breve o reconhecimento de palma da mão estará disponível.\nPor enquanto, utilize QR Code ou registro manual.');
+        return;
+    }
+    
+    // Quando o sensor estiver ativo, este código será executado
+    alert('Posicione a palma da mão no sensor...');
+    
+    // Simular leitura do sensor
+    setTimeout(function() {
+        var alunoId = 'PALMA_' + Date.now();
+        var nomeAluno = prompt('Nome do aluno:', 'Aluno');
+        
+        if (nomeAluno) {
+            // Enviar formulário com os dados
+            var form = document.createElement('form');
+            form.method = 'POST';
+            form.action = '';
+            
+            var csrf = document.createElement('input');
+            csrf.type = 'hidden';
+            csrf.name = 'csrfmiddlewaretoken';
+            csrf.value = document.querySelector('[name=csrfmiddlewaretoken]').value;
+            form.appendChild(csrf);
+            
+            var metodo = document.createElement('input');
+            metodo.type = 'hidden';
+            metodo.name = 'metodo';
+            metodo.value = 'PALMA';
+            form.appendChild(metodo);
+            
+            var aluno_id = document.createElement('input');
+            aluno_id.type = 'hidden';
+            aluno_id.name = 'aluno_id';
+            aluno_id.value = alunoId;
+            form.appendChild(aluno_id);
+            
+            var nome = document.createElement('input');
+            nome.type = 'hidden';
+            nome.name = 'nome_aluno';
+            nome.value = nomeAluno;
+            form.appendChild(nome);
+            
+            document.body.appendChild(form);
+            form.submit();
+        }
+    }, 2000);
+}
+
+function lerQRCode() {
+    var codigo = document.getElementById('qrcode_input').value;
+    if (codigo) {
+        // Simular leitura de QR Code
+        var confirmar = confirm('QR Code lido: ' + codigo + '\n\nConfirmar check-in?');
+        if (confirmar) {
+            var form = document.createElement('form');
+            form.method = 'POST';
+            form.action = '';
+            var csrf = document.createElement('input');
+            csrf.type = 'hidden';
+            csrf.name = 'csrfmiddlewaretoken';
+            csrf.value = document.querySelector('[name=csrfmiddlewaretoken]').value;
+            form.appendChild(csrf);
+            
+            var metodo = document.createElement('input');
+            metodo.type = 'hidden';
+            metodo.name = 'metodo';
+            metodo.value = 'QRCODE';
+            form.appendChild(metodo);
+            
+            var aluno_id = document.createElement('input');
+            aluno_id.type = 'hidden';
+            aluno_id.name = 'aluno_id';
+            aluno_id.value = codigo;
+            form.appendChild(aluno_id);
+            
+            var nome = document.createElement('input');
+            nome.type = 'hidden';
+            nome.name = 'nome_aluno';
+            nome.value = 'Aluno QR Code';
+            form.appendChild(nome);
+            
+            document.body.appendChild(form);
+            form.submit();
+        }
+    } else {
+        alert('Digite ou escaneie o código do QR Code');
+    }
+}
+
+// Função para ativar o sensor quando estiver disponível (será chamada pela API)
+function ativarSensorBiometrico() {
+    sensorAtivo = true;
+    console.log('Sensor biométrico ativado!');
+    
+    // Atualizar a interface
+    var botoes = document.querySelectorAll('#palmScanner .btn-primary');
+    botoes.forEach(function(botao) {
+        botao.disabled = false;
+        botao.innerHTML = '<i class="fas fa-fingerprint"></i> Scanear Mão (Sensor Ativo)';
+    });
+}
+</script>
+{% endblock %}

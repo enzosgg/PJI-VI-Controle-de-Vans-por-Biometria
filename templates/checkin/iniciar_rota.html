@@ -1,0 +1,61 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Iniciar Nova Rota{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h4 class="mb-0"><i class="fas fa-route"></i> Iniciar Nova Rota</h4>
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+                    
+                    <div class="mb-3">
+                        <label for="nome_rota" class="form-label">Nome da Rota *</label>
+                        <input type="text" class="form-control" id="nome_rota" name="nome_rota" 
+                               placeholder="Ex: Rota Manhã - Bairro A" required>
+                        <small class="text-muted">Use um nome que identifique facilmente esta rota</small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="tipo" class="form-label">Tipo de Rota *</label>
+                        <select class="form-control" id="tipo" name="tipo" required>
+                            <option value="IDA">Ida para Escola</option>
+                            <option value="VOLTA">Volta para Casa</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="horario_previsto" class="form-label">Horário Previsto</label>
+                        <input type="time" class="form-control" id="horario_previsto" name="horario_previsto">
+                        <small class="text-muted">Horário previsto para início da rota</small>
+                    </div>
+                    
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle"></i>
+                        <strong>Instruções:</strong>
+                        <ul class="mb-0 mt-2">
+                            <li>Após iniciar a rota, você poderá fazer check-in dos alunos</li>
+                            <li>Use reconhecimento de palma ou QR Code para registrar</li>
+                            <li>O sistema emitirá alertas se houver divergência</li>
+                        </ul>
+                    </div>
+                    
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-primary btn-lg">
+                            <i class="fas fa-play"></i> Iniciar Rota
+                        </button>
+                        <a href="{% url 'dashboard' %}" class="btn btn-secondary">
+                            <i class="fas fa-arrow-left"></i> Voltar
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

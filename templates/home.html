@@ -1,0 +1,13 @@
+{% extends 'base.html' %}
+{% block title %}Home{% endblock %}
+{% block content %}
+<div class="text-center">
+    <h1>Bem-vindo ao Sistema de Controle de Vans</h1>
+    <p>Sistema para gerenciamento de Alunos</p>
+    {% if not user.is_authenticated %}
+        <a href="{% url 'login' %}" class="btn btn-primary">Fazer Login</a>
+    {% else %}
+        <a href="{% url 'dashboard' %}" class="btn btn-success">Ir para Dashboard</a>
+    {% endif %}
+</div>
+{% endblock %}

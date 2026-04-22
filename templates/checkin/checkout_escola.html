@@ -1,0 +1,130 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Check-out - {{ sessao.nome_rota }}{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="alert alert-warning">
+            <h4><i class="fas fa-sign-out-alt"></i> Check-out na Escola</h4>
+            <p>Rota: <strong>{{ sessao.nome_rota }}</strong> | {{ sessao.get_tipo_display }}</p>
+            <p>Check-ins: {{ total_checkins }} | Check-outs: {{ total_checkouts }}</p>
+            
+            {% if divergencia > 0 %}
+            <div class="alert alert-danger" id="alertaDivergencia">
+                <i class="fas fa-exclamation-triangle"></i>
+                <strong>ATENÇÃO!</strong> {{ divergencia }} aluno(s) ainda não fizeram check-out!
+                <button class="btn btn-sm btn-danger ms-2" onclick="emitirAlerta('Verifique a van! Aluno(s) sem check-out!')">
+                    <i class="fas fa-bell"></i> Emitir Alerta
+                </button>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-6">
+        <!-- Card de Verificação Biométrica -->
+        <div class="card mb-3">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0"><i class="fas fa-hand-peace"></i> Verificação Biométrica</h5>
+            </div>
+            <div class="card-body text-center">
+                <div class="border rounded p-4" style="background: #f8f9fa;">
+                    <i class="fas fa-hand-peace fa-4x mb-3 text-primary"></i>
+                    <p>Confirme identidade do aluno</p>
+                    
+                    <button type="button" class="btn btn-primary btn-lg" 
+                            onclick="verificarBiometriaCheckout()" disabled>
+                        <i class="fas fa-fingerprint"></i> Verificar Palma
+                    </button>
+                    
+                    <div class="alert alert-warning mt-3 mb-0">
+                        <i class="fas fa-info-circle"></i>
+                        <small>Funcionalidade em desenvolvimento. Por enquanto, use check-out manual.</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card mb-3">
+            <div class="card-header bg-warning text-white">
+                <h5 class="mb-0"><i class="fas fa-child"></i> Alunos a bordo</h5>
+            </div>
+            <div class="card-body">
+                {% if registros %}
+                    <div class="list-group">
+                        {% for registro in registros %}
+                        <div class="list-group-item">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <strong>{{ registro.nome_aluno|default:registro.aluno_id_temporario }}</strong><br>
+                                    <small class="text-muted">ID: {{ registro.aluno_id_temporario|slice:":8" }}</small><br>
+                                    <small>Check-in: {{ registro.horario_checkin|date:"H:i:s" }}</small>
+                                    <small class="text-muted d-block">Método: 
+                                        {% if registro.metodo_checkin == 'PALMA' %}
+                                            <i class="fas fa-hand-peace"></i> Palma
+                                        {% elif registro.metodo_checkin == 'QRCODE' %}
+                                            <i class="fas fa-qrcode"></i> QR Code
+                                        {% else %}
+                                            <i class="fas fa-pen"></i> Manual
+                                        {% endif %}
+                                    </small>
+                                </div>
+                                <form method="post" style="display: inline;">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="aluno_id" value="{{ registro.aluno_id_temporario }}">
+                                    <button type="submit" class="btn btn-warning">
+                                        <i class="fas fa-sign-out-alt"></i> Check-out
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="alert alert-success">
+                        <i class="fas fa-check-circle"></i> Todos os alunos já fizeram check-out!
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header bg-info text-white">
+                <h5 class="mb-0"><i class="fas fa-list"></i> Resumo da Rota</h5>
+            </div>
+            <div class="card-body">
+                <table class="table">
+                    <tr><th>Total de Alunos:</th><td class="text-end">{{ total_checkins }}</td></tr>
+                    <tr><th>Check-outs Realizados:</th><td class="text-end text-success">{{ total_checkouts }}</td></tr>
+                    <tr class="{% if divergencia > 0 %}table-danger{% endif %}">
+                        <th>Pendentes:</th><td class="text-end fw-bold">{{ divergencia }}</td></tr>
+                </table>
+                
+                <div class="d-grid gap-2 mt-3">
+                    <a href="{% url 'finalizar_rota' sessao.id %}" class="btn btn-danger btn-lg">
+                        <i class="fas fa-flag-checkered"></i> Finalizar Rota
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function verificarBiometriaCheckout() {
+    alert('Funcionalidade em desenvolvimento!\n\nEm breve será possível verificar a biometria para check-out.\nPor enquanto, utilize o botão de check-out manual.');
+}
+
+{% if divergencia > 0 %}
+setTimeout(function() {
+    emitirAlerta('{{ divergencia }} aluno(s) ainda não fizeram check-out! Verifique a van!');
+}, 1000);
+{% endif %}
+</script>
+{% endblock %}
