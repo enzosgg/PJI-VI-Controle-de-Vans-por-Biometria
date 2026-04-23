@@ -26,25 +26,37 @@
 
 <div class="row">
     <div class="col-md-6">
-        <!-- Card de Verificação Biométrica -->
         <div class="card mb-3">
             <div class="card-header bg-primary text-white">
                 <h5 class="mb-0"><i class="fas fa-hand-peace"></i> Verificação Biométrica</h5>
             </div>
             <div class="card-body text-center">
-                <div class="border rounded p-4" style="background: #f8f9fa;">
+                <div id="scannerInstrucoes" class="border rounded p-4" style="background: #f8f9fa;">
                     <i class="fas fa-hand-peace fa-4x mb-3 text-primary"></i>
                     <p>Confirme identidade do aluno</p>
                     
-                    <button type="button" class="btn btn-primary btn-lg" 
-                            onclick="verificarBiometriaCheckout()" disabled>
+                    <button type="button" class="btn btn-primary btn-lg" onclick="scanearPalma()">
                         <i class="fas fa-fingerprint"></i> Verificar Palma
                     </button>
+                </div>
+                
+                <div id="cameraPlaceholder" style="display: none;">
+                    <video id="videoCamera" width="100%" height="auto" autoplay playsinline></video>
                     
-                    <div class="alert alert-warning mt-3 mb-0">
-                        <i class="fas fa-info-circle"></i>
-                        <small>Funcionalidade em desenvolvimento. Por enquanto, use check-out manual.</small>
-                    </div>
+                    <canvas id="canvasCamera" style="display: none;"></canvas>
+                    
+                    <button class="btn btn-success mt-2" onclick="capturarImagemDaCamera()">
+                        <i class="fas fa-camera"></i> Capturar e Validar
+                    </button>
+                    
+                    <button class="btn btn-danger mt-2" onclick="fecharCamera()">
+                        <i class="fas fa-times"></i> Cancelar
+                    </button>
+                </div>
+
+                <div id="loadingPlaceholder" style="display: none;">
+                    <div class="spinner-border text-primary" role="status"></div>
+                    <p class="mt-3 font-weight-bold" id="loadingText">Extraindo biometria...</p>
                 </div>
             </div>
         </div>
@@ -76,7 +88,7 @@
                                 <form method="post" style="display: inline;">
                                     {% csrf_token %}
                                     <input type="hidden" name="aluno_id" value="{{ registro.aluno_id_temporario }}">
-                                    <button type="submit" class="btn btn-warning">
+                                    <button type="submit" class="btn btn-warning" id="btn-checkout-{{ registro.aluno_id_temporario }}">
                                         <i class="fas fa-sign-out-alt"></i> Check-out
                                     </button>
                                 </form>
@@ -117,8 +129,142 @@
 </div>
 
 <script>
-function verificarBiometriaCheckout() {
-    alert('Funcionalidade em desenvolvimento!\n\nEm breve será possível verificar a biometria para check-out.\nPor enquanto, utilize o botão de check-out manual.');
+
+var streamCamera = null;
+
+function scanearPalma() {
+    document.getElementById('scannerInstrucoes').style.display = 'none';
+    document.getElementById('cameraPlaceholder').style.display = 'block';
+    
+    var video = document.getElementById('videoCamera');
+
+    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+            .then(function(stream) {
+                streamCamera = stream;
+                video.srcObject = stream;
+            })
+            .catch(function(err) {
+                alert('Erro ao acessar a câmera: ' + err.message + '\nLembre-se: O navegador móvel exige HTTPS para abrir a câmera.');
+                fecharCamera();
+            });
+    } else {
+        alert('Seu navegador não suporta a API de acesso à câmera.');
+        fecharCamera();
+    }
+}
+
+function capturarImagemDaCamera() {
+    var video = document.getElementById('videoCamera');
+    var canvas = document.getElementById('canvasCamera');
+    var context = canvas.getContext('2d');
+
+    if (video.readyState < 2 || !video.videoWidth || video.videoWidth === 0) {
+        alert("A câmera do dispositivo ainda está sincronizando o foco ou hardware. Aguarde um segundo e clique novamente.");
+        return;
+    }
+
+    var tamanhoQuadrado = Math.min(video.videoWidth, video.videoHeight);
+    canvas.width = tamanhoQuadrado;
+    canvas.height = tamanhoQuadrado;
+    
+    var offsetX = (video.videoWidth - tamanhoQuadrado) / 2;
+    var offsetY = (video.videoHeight - tamanhoQuadrado) / 2;
+
+    context.drawImage(video, offsetX, offsetY, tamanhoQuadrado, tamanhoQuadrado, 0, 0, tamanhoQuadrado, tamanhoQuadrado);
+
+    var imagemBase64 = canvas.toDataURL('image/jpeg', 0.7);
+
+    if (!imagemBase64 || imagemBase64.length < 1000) {
+        alert("Falha na captura: Sensor de vídeo enviou frame vazio. Tente novamente.");
+        return;
+    }
+
+    fecharCamera();
+    
+    document.getElementById('scannerInstrucoes').style.display = 'none';
+    document.getElementById('loadingPlaceholder').style.display = 'block';
+    document.getElementById('loadingText').innerText = "Passo 1/2: Extraindo traços da palma...";
+
+    fetch('/api/capturar-palma/', { 
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        },
+        body: JSON.stringify({ imagem: imagemBase64 })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            compararTemplateComBanco(data.template);
+        } else {
+            alert('Falha na extração: ' + data.error);
+            resetarInterface();
+        }
+    })
+    .catch(error => {
+        alert('Erro de rede na Etapa 1: ' + error);
+        resetarInterface();
+    });
+}
+
+function fecharCamera() {
+    if (streamCamera) {
+        streamCamera.getTracks().forEach(track => track.stop());
+        streamCamera = null;
+    }
+    document.getElementById('cameraPlaceholder').style.display = 'none';
+    document.getElementById('scannerInstrucoes').style.display = 'block';
+}
+
+function compararTemplateComBanco(templateGerado) {
+    document.getElementById('loadingText').innerText = "Passo 2/2: Procurando aluno na van...";
+
+    fetch('/api/ler-biometria/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        },
+        body: JSON.stringify({ 
+            template: templateGerado,
+            sessao_id: '{{ sessao.id }}' 
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            var confirmar = confirm('Biometria correspondente a: ' + data.nome_aluno + '\n\nConfirmar o check-out deste aluno?');
+            if (confirmar) {
+                var btnSubmit = document.getElementById('btn-checkout-' + data.aluno_id);
+                if (btnSubmit) {
+                    btnSubmit.click();
+                } else {
+                    alert('Erro: Formulário do aluno não encontrado.');
+                    resetarInterface();
+                }
+            } else {
+                resetarInterface();
+            }
+        } else {
+            alert('Aviso: ' + data.error);
+            resetarInterface();
+        }
+    })
+    .catch(error => {
+        alert('Erro de rede na Etapa 2: ' + error);
+        resetarInterface();
+    });
+}
+
+function resetarInterface() {
+    document.getElementById('loadingPlaceholder').style.display = 'none';
+    document.getElementById('scannerInstrucoes').style.display = 'block';
+}
+
+function emitirAlerta(msg) {
+    alert(msg);
 }
 
 {% if divergencia > 0 %}

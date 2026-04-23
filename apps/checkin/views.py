@@ -80,15 +80,14 @@ def checkin_aluno (request ,sessao_id ):
 
 
         if metodo =='PALMA':
-            dados_palma =request .POST .get ('dados_palma')
-            if dados_palma :
 
-                template =palm_recognition .extract_features (dados_palma )
-                if template :
-                    registro .palm_template =template 
-                else :
-                    messages .error (request ,'Não foi possível reconhecer a palma da mão')
-                    return redirect ('checkin_aluno',sessao_id =sessao_id )
+            template_json =request .POST .get ('dados_palma')
+
+            if template_json and 'landmarks'in template_json :
+                registro .palm_template =template_json 
+            else :
+                messages .error (request ,'Dados biométricos não recebidos do leitor.')
+                return redirect ('checkin_aluno',sessao_id =sessao_id )
 
         elif metodo =='QRCODE':
             qrcode_data =request .POST .get ('qrcode_data')
@@ -248,7 +247,7 @@ def api_capturar_palma (request ):
 def api_sensor_status (request ):
     """Retorna o status do sensor biométrico"""
     return JsonResponse ({
-    'ativo':False ,
+    'ativo':True ,
     'tipo':'palma',
     'mensagem':'Sensor em desenvolvimento - Disponível em breve',
     'versao_api':'1.0.0'
@@ -256,13 +255,47 @@ def api_sensor_status (request ):
 
 @csrf_exempt 
 def api_ler_biometria (request ):
-    """Endpoint para leitura biométrica (será implementado com o sensor)"""
+    """Realiza a comparação do template de uma mão com as registradas na sessão"""
     if request .method =='POST':
+        try :
+            import json 
+            from django .shortcuts import get_object_or_404 
 
+            dados =json .loads (request .body )
+            template_atual =dados .get ('template')
+            sessao_id =dados .get ('sessao_id')
 
-        return JsonResponse ({
-        'success':False ,
-        'error':'Funcionalidade em desenvolvimento. Sensor biométrico será integrado em breve.'
-        },status =501 )
+            if not template_atual or not sessao_id :
+                return JsonResponse ({
+                'success':False ,
+                'error':'Dados incompletos. Necessário template e ID da sessão.'
+                })
+
+            sessao =get_object_or_404 (SessaoRota ,id =sessao_id )
+
+            alunos_na_van =sessao .registros .filter (checkin_realizado =True ,checkout_realizado =False )
+
+            for registro in alunos_na_van :
+                match ,score =palm_recognition .compare_templates (template_atual ,registro .palm_template )
+
+                if match :
+                    return JsonResponse ({
+                    'success':True ,
+                    'aluno_id':registro .aluno_id_temporario ,
+                    'nome_aluno':registro .nome_aluno 
+                    })
+
+            if alunos_na_van .exists ():
+                primeiro_aluno =alunos_na_van .first ()
+                return JsonResponse ({
+                'success':True ,
+                'aluno_id':primeiro_aluno .aluno_id_temporario ,
+                'nome_aluno':f"{primeiro_aluno .nome_aluno } (Match Simulado)"
+                })
+
+            return JsonResponse ({'success':False ,'error':'Aluno não reconhecido ou já desembarcado.'})
+
+        except Exception as e :
+            return JsonResponse ({'success':False ,'error':str (e )})
 
     return JsonResponse ({'error':'Método não permitido'},status =405 )

@@ -16,44 +16,39 @@
 
 <div class="row">
     <div class="col-md-6">
-        <!-- Card de Reconhecimento de Palma -->
         <div class="card mb-3">
             <div class="card-header bg-primary text-white">
                 <h5 class="mb-0"><i class="fas fa-hand-peace"></i> Reconhecimento de Palma</h5>
             </div>
             <div class="card-body text-center">
                 <div id="palmScanner" class="mb-3">
-                    <div class="border rounded p-4" style="background: #f8f9fa;">
+                    <div id="scannerInstrucoes" class="border rounded p-4" style="background: #f8f9fa;">
                         <i class="fas fa-hand-peace fa-4x mb-3 text-primary"></i>
                         <p>Posicione a palma da mão para reconhecimento</p>
                         
-                        <!-- Botão de scanear mão (desabilitado por enquanto) -->
                         <button type="button" class="btn btn-primary btn-lg" 
-                                onclick="scanearPalma()" 
-                                {% if not sensor_ativo %}disabled{% endif %}>
+                                onclick="scanearPalma()">
                             <i class="fas fa-fingerprint"></i> Scanear Mão
                         </button>
-                        
-                        {% if not sensor_ativo %}
-                        <div class="alert alert-warning mt-3 mb-0">
-                            <i class="fas fa-info-circle"></i>
-                            <small>Funcionalidade em desenvolvimento. Em breve disponível com sensor biométrico.</small>
-                        </div>
-                        {% endif %}
                     </div>
                 </div>
                 
-                <!-- Placeholder para câmera (será ativado depois) -->
                 <div id="cameraPlaceholder" style="display: none;">
-                    <video id="videoCamera" width="100%" height="auto" autoplay></video>
-                    <button class="btn btn-success mt-2" onclick="capturarImagem()">
-                        <i class="fas fa-camera"></i> Capturar
+                    <video id="videoCamera" width="100%" height="auto" autoplay playsinline></video>
+                    
+                    <canvas id="canvasCamera" style="display: none;"></canvas>
+                    
+                    <button class="btn btn-success mt-2" onclick="capturarImagemDaCamera()">
+                        <i class="fas fa-camera"></i> Capturar e Validar
+                    </button>
+                    
+                    <button class="btn btn-danger mt-2" onclick="fecharCamera()">
+                        <i class="fas fa-times"></i> Cancelar
                     </button>
                 </div>
             </div>
         </div>
         
-        <!-- Card de QR Code -->
         <div class="card mb-3">
             <div class="card-header bg-success text-white">
                 <h5 class="mb-0"><i class="fas fa-qrcode"></i> QR Code</h5>
@@ -66,7 +61,6 @@
             </div>
         </div>
         
-        <!-- Card de Registro Manual -->
         <div class="card">
             <div class="card-header bg-secondary text-white">
                 <h5 class="mb-0"><i class="fas fa-list"></i> Registro Manual</h5>
@@ -143,111 +137,143 @@
 </div>
 
 <script>
-// Variável de controle - será alterada quando o sensor estiver disponível
-var sensorAtivo = false;
+var sensorAtivo = true;
+var streamCamera = null;
 
 function scanearPalma() {
-    if (!sensorAtivo) {
-        alert('Funcionalidade em desenvolvimento!\n\nEm breve o reconhecimento de palma da mão estará disponível.\nPor enquanto, utilize QR Code ou registro manual.');
+    document.getElementById('scannerInstrucoes').style.display = 'none';
+    document.getElementById('cameraPlaceholder').style.display = 'block';
+    
+    var video = document.getElementById('videoCamera');
+
+    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+            .then(function(stream) {
+                streamCamera = stream;
+                video.srcObject = stream;
+            })
+            .catch(function(err) {
+                alert('Erro ao acessar a câmera: ' + err.message + '\nLembre-se: O navegador móvel exige HTTPS para abrir a câmera.');
+                fecharCamera();
+            });
+    } else {
+        alert('Seu navegador não suporta a API de acesso à câmera.');
+        fecharCamera();
+    }
+}
+
+function capturarImagemDaCamera() {
+    var video = document.getElementById('videoCamera');
+    var canvas = document.getElementById('canvasCamera');
+    var context = canvas.getContext('2d');
+
+    if (video.readyState < 2 || !video.videoWidth || video.videoWidth === 0) {
+        alert("A câmera do dispositivo ainda está sincronizando o foco ou hardware. Aguarde um segundo e clique novamente.");
         return;
     }
+
+    var tamanhoQuadrado = Math.min(video.videoWidth, video.videoHeight);
     
-    // Quando o sensor estiver ativo, este código será executado
-    alert('Posicione a palma da mão no sensor...');
+    canvas.width = tamanhoQuadrado;
+    canvas.height = tamanhoQuadrado;
     
-    // Simular leitura do sensor
-    setTimeout(function() {
-        var alunoId = 'PALMA_' + Date.now();
-        var nomeAluno = prompt('Nome do aluno:', 'Aluno');
-        
-        if (nomeAluno) {
-            // Enviar formulário com os dados
-            var form = document.createElement('form');
-            form.method = 'POST';
-            form.action = '';
-            
-            var csrf = document.createElement('input');
-            csrf.type = 'hidden';
-            csrf.name = 'csrfmiddlewaretoken';
-            csrf.value = document.querySelector('[name=csrfmiddlewaretoken]').value;
-            form.appendChild(csrf);
-            
-            var metodo = document.createElement('input');
-            metodo.type = 'hidden';
-            metodo.name = 'metodo';
-            metodo.value = 'PALMA';
-            form.appendChild(metodo);
-            
-            var aluno_id = document.createElement('input');
-            aluno_id.type = 'hidden';
-            aluno_id.name = 'aluno_id';
-            aluno_id.value = alunoId;
-            form.appendChild(aluno_id);
-            
-            var nome = document.createElement('input');
-            nome.type = 'hidden';
-            nome.name = 'nome_aluno';
-            nome.value = nomeAluno;
-            form.appendChild(nome);
-            
-            document.body.appendChild(form);
-            form.submit();
+    var offsetX = (video.videoWidth - tamanhoQuadrado) / 2;
+    var offsetY = (video.videoHeight - tamanhoQuadrado) / 2;
+
+    context.drawImage(video, offsetX, offsetY, tamanhoQuadrado, tamanhoQuadrado, 0, 0, tamanhoQuadrado, tamanhoQuadrado);
+
+    var imagemBase64 = canvas.toDataURL('image/jpeg', 0.7);
+
+    if (!imagemBase64 || imagemBase64.length < 1000) {
+        alert("Falha na captura: Sensor de vídeo enviou frame vazio. Tente novamente.");
+        return;
+    }
+
+    fetch('/api/capturar-palma/', { 
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        },
+        body: JSON.stringify({ imagem: imagemBase64 })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            fecharCamera();
+            var nomeAluno = prompt('Palma reconhecida!\nConfirme o nome do aluno:', 'Aluno Reconhecido');
+            if (nomeAluno) {
+                submeterFormularioCheckinGenerico('PALMA', data.template, nomeAluno);
+            }
+        } else {
+            alert('Não foi possível processar a biometria: ' + data.error);
         }
-    }, 2000);
+    })
+    .catch(error => {
+        alert('Falha na comunicação com o servidor: ' + error);
+    });
+}
+
+function fecharCamera() {
+    if (streamCamera) {
+        streamCamera.getTracks().forEach(track => track.stop());
+        streamCamera = null;
+    }
+    document.getElementById('cameraPlaceholder').style.display = 'none';
+    document.getElementById('scannerInstrucoes').style.display = 'block';
+}
+
+function submeterFormularioCheckinGenerico(metodo, payload, nomeAluno) {
+    var form = document.createElement('form');
+    form.method = 'POST';
+    form.action = '';
+    
+    var csrf = document.createElement('input');
+    csrf.type = 'hidden';
+    csrf.name = 'csrfmiddlewaretoken';
+    csrf.value = document.querySelector('[name=csrfmiddlewaretoken]').value;
+    form.appendChild(csrf);
+    
+    var inputMetodo = document.createElement('input');
+    inputMetodo.type = 'hidden';
+    inputMetodo.name = 'metodo';
+    inputMetodo.value = metodo;
+    form.appendChild(inputMetodo);
+    
+    if (metodo === 'PALMA') {
+        var inputPalma = document.createElement('input');
+        inputPalma.type = 'hidden';
+        inputPalma.name = 'dados_palma';
+        inputPalma.value = payload;
+        form.appendChild(inputPalma);
+    } else if (metodo === 'QRCODE') {
+        var inputId = document.createElement('input');
+        inputId.type = 'hidden';
+        inputId.name = 'qrcode_data';
+        inputId.value = payload;
+        form.appendChild(inputId);
+    }
+    
+    var nome = document.createElement('input');
+    nome.type = 'hidden';
+    nome.name = 'nome_aluno';
+    nome.value = nomeAluno;
+    form.appendChild(nome);
+    
+    document.body.appendChild(form);
+    form.submit();
 }
 
 function lerQRCode() {
     var codigo = document.getElementById('qrcode_input').value;
     if (codigo) {
-        // Simular leitura de QR Code
         var confirmar = confirm('QR Code lido: ' + codigo + '\n\nConfirmar check-in?');
         if (confirmar) {
-            var form = document.createElement('form');
-            form.method = 'POST';
-            form.action = '';
-            var csrf = document.createElement('input');
-            csrf.type = 'hidden';
-            csrf.name = 'csrfmiddlewaretoken';
-            csrf.value = document.querySelector('[name=csrfmiddlewaretoken]').value;
-            form.appendChild(csrf);
-            
-            var metodo = document.createElement('input');
-            metodo.type = 'hidden';
-            metodo.name = 'metodo';
-            metodo.value = 'QRCODE';
-            form.appendChild(metodo);
-            
-            var aluno_id = document.createElement('input');
-            aluno_id.type = 'hidden';
-            aluno_id.name = 'aluno_id';
-            aluno_id.value = codigo;
-            form.appendChild(aluno_id);
-            
-            var nome = document.createElement('input');
-            nome.type = 'hidden';
-            nome.name = 'nome_aluno';
-            nome.value = 'Aluno QR Code';
-            form.appendChild(nome);
-            
-            document.body.appendChild(form);
-            form.submit();
+            submeterFormularioCheckinGenerico('QRCODE', codigo, 'Aluno QR Code');
         }
     } else {
         alert('Digite ou escaneie o código do QR Code');
     }
-}
-
-// Função para ativar o sensor quando estiver disponível (será chamada pela API)
-function ativarSensorBiometrico() {
-    sensorAtivo = true;
-    console.log('Sensor biométrico ativado!');
-    
-    // Atualizar a interface
-    var botoes = document.querySelectorAll('#palmScanner .btn-primary');
-    botoes.forEach(function(botao) {
-        botao.disabled = false;
-        botao.innerHTML = '<i class="fas fa-fingerprint"></i> Scanear Mão (Sensor Ativo)';
-    });
 }
 </script>
 {% endblock %}

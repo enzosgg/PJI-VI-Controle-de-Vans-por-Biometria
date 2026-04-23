@@ -11,8 +11,13 @@ SECRET_KEY = config('SECRET_KEY', default='django-insecure-key-123456789')
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = config('DEBUG', default=True, cast=bool)
 
-ALLOWED_HOSTS = ['*']
+ALLOWED_HOSTS = ['localhost', '127.0.0.1', '.ngrok-free.dev', '.ngrok.io', '.ngrok.app', '*']
 
+CSRF_TRUSTED_ORIGINS = [
+    'https://*.ngrok-free.dev',
+    'https://*.ngrok.io',
+    'https://*.ngrok.app',
+]
 # Application definition
 INSTALLED_APPS = [
     'django.contrib.admin',
