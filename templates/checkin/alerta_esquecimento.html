@@ -58,33 +58,50 @@
                     <a href="{% url 'checkout_escola' sessao.id %}" class="btn btn-warning btn-lg">
                         <i class="fas fa-arrow-left"></i> Voltar para Check-out
                     </a>
-                    <form method="post" style="display: inline;">
+                    
+                    <form method="post" class="mt-3 text-start">
                         {% csrf_token %}
-                        <button type="submit" class="btn btn-danger btn-lg">
+                        <div class="mb-3">
+                            <label for="motivo_divergencia" class="form-label fw-bold text-danger">
+                                Motivo da Divergência (Preenchimento Obrigatório):
+                            </label>
+                            <textarea name="motivo" id="motivo_divergencia" class="form-control border-danger" rows="3" placeholder="Descreva detalhadamente o motivo para finalizar com divergência."></textarea>
+                        </div>
+                        <button type="submit" id="btn-finalizar-divergencia" class="btn btn-danger btn-lg w-100" disabled>
                             <i class="fas fa-flag-checkered"></i> Finalizar Mesmo com Divergência
                         </button>
                     </form>
-                </div>
+                    </div>
             </div>
         </div>
     </div>
 </div>
 
 <script>
-// Emitir alerta sonoro automaticamente ao carregar a página
 document.addEventListener('DOMContentLoaded', function() {
     emitirAlerta('ATENÇÃO! {{ divergencia }} aluno(s) sem check-out! Verifique imediatamente a van e a escola!');
     
-    // Tentar tocar som de alerta se disponível
     var audio = new Audio();
     audio.src = 'data:audio/wav;base64,U3RlcmVvIGRlIGFsZXJ0YQ==';
     audio.play().catch(function(e) {
         console.log('Som não disponível');
     });
     
-    // Vibrar se for mobile
     if (navigator.vibrate) {
         navigator.vibrate([1000, 500, 1000, 500, 1000]);
+    }
+    
+    const txtMotivo = document.getElementById('motivo_divergencia');
+    const btnFinalizar = document.getElementById('btn-finalizar-divergencia');
+    
+    if (txtMotivo && btnFinalizar) {
+        txtMotivo.addEventListener('input', function() {
+            if (this.value.trim().length >= 5) {
+                btnFinalizar.disabled = false;
+            } else {
+                btnFinalizar.disabled = true;
+            }
+        });
     }
 });
 </script>

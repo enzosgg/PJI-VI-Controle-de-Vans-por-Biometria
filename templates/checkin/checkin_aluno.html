@@ -47,46 +47,6 @@
                     </button>
                 </div>
             </div>
-        </div>
-        
-        <div class="card mb-3">
-            <div class="card-header bg-success text-white">
-                <h5 class="mb-0"><i class="fas fa-qrcode"></i> QR Code</h5>
-            </div>
-            <div class="card-body text-center">
-                <input type="text" id="qrcode_input" class="form-control mb-3" placeholder="Código do QR Code">
-                <button class="btn btn-info" onclick="lerQRCode()">
-                    <i class="fas fa-camera"></i> Escanear QR Code
-                </button>
-            </div>
-        </div>
-        
-        <div class="card">
-            <div class="card-header bg-secondary text-white">
-                <h5 class="mb-0"><i class="fas fa-list"></i> Registro Manual</h5>
-            </div>
-            <div class="card-body">
-                <form method="post" id="formManual">
-                    {% csrf_token %}
-                    <input type="hidden" name="metodo" value="MANUAL">
-                    <div class="mb-2">
-                        <input type="text" name="aluno_id" class="form-control" placeholder="ID do Aluno (opcional)">
-                    </div>
-                    <div class="mb-2">
-                        <input type="text" name="nome_aluno" class="form-control" placeholder="Nome do Aluno" required>
-                    </div>
-                    <div class="mb-2">
-                        <input type="text" name="responsavel" class="form-control" placeholder="Nome do Responsável">
-                    </div>
-                    <div class="mb-2">
-                        <input type="tel" name="telefone" class="form-control" placeholder="Telefone do Responsável">
-                    </div>
-                    <button type="submit" class="btn btn-secondary w-100">
-                        <i class="fas fa-save"></i> Registrar Check-in
-                    </button>
-                </form>
-            </div>
-        </div>
     </div>
     
     <div class="col-md-6">
@@ -100,7 +60,6 @@
                         <thead>
                             <tr>
                                 <th>ID</th>
-                                <th>Nome</th>
                                 <th>Hora</th>
                                 <th>Método</th>
                                 <th>Status</th>
@@ -110,15 +69,10 @@
                             {% for registro in registros %}
                             <tr>
                                 <td>{{ registro.aluno_id_temporario|slice:":8" }}</td>
-                                <td>{{ registro.nome_aluno }}</td>
                                 <td>{{ registro.horario_checkin|date:"H:i:s" }}</td>
                                 <td>
                                     {% if registro.metodo_checkin == 'PALMA' %}
                                         <i class="fas fa-hand-peace text-primary" title="Palma"></i>
-                                    {% elif registro.metodo_checkin == 'QRCODE' %}
-                                        <i class="fas fa-qrcode text-success" title="QR Code"></i>
-                                    {% else %}
-                                        <i class="fas fa-pen text-secondary" title="Manual"></i>
                                     {% endif %}
                                 </td>
                                 <td>{% if registro.checkout_realizado %}✅{% else %}⏳{% endif %}</td>
@@ -201,10 +155,8 @@ function capturarImagemDaCamera() {
     .then(data => {
         if (data.success) {
             fecharCamera();
-            var nomeAluno = prompt('Palma reconhecida!\nConfirme o nome do aluno:', 'Aluno Reconhecido');
-            if (nomeAluno) {
-                submeterFormularioCheckinGenerico('PALMA', data.template, nomeAluno);
-            }
+            alert('Aluno reconhecido com sucesso!');
+            submeterFormularioCheckinGenerico('PALMA', data.template, 'Aluno Reconhecido');
         } else {
             alert('Não foi possível processar a biometria: ' + data.error);
         }

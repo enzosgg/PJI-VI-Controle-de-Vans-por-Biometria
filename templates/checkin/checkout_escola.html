@@ -72,7 +72,6 @@
                         <div class="list-group-item">
                             <div class="d-flex justify-content-between align-items-center">
                                 <div>
-                                    <strong>{{ registro.nome_aluno|default:registro.aluno_id_temporario }}</strong><br>
                                     <small class="text-muted">ID: {{ registro.aluno_id_temporario|slice:":8" }}</small><br>
                                     <small>Check-in: {{ registro.horario_checkin|date:"H:i:s" }}</small>
                                     <small class="text-muted d-block">Método: 
