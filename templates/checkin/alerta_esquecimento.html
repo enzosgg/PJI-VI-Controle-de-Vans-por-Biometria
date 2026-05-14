@@ -20,21 +20,25 @@
                 </div>
                 
                 <div class="row mt-4">
-                    <div class="col-md-6">
-                        <div class="card">
-                            <div class="card-body">
-                                <i class="fas fa-van fa-2x text-primary"></i>
+                    <div class="col-md-6 mb-3">
+                        <div class="card h-100 shadow-sm border-warning">
+                            <div class="card-body d-flex flex-column justify-content-center">
+                                <div>
+                                    <i class="fas fa-van fa-3x text-primary mb-2"></i>
+                                </div>
                                 <h5>Verifique a VAN</h5>
-                                <p>Procure em todos os bancos e cantos do veículo</p>
+                                <p class="mb-0 text-muted">Procure em todos os bancos e cantos do veículo</p>
                             </div>
                         </div>
                     </div>
-                    <div class="col-md-6">
-                        <div class="card">
-                            <div class="card-body">
-                                <i class="fas fa-school fa-2x text-warning"></i>
+                    <div class="col-md-6 mb-3">
+                        <div class="card h-100 shadow-sm border-warning">
+                            <div class="card-body d-flex flex-column justify-content-center">
+                                <div>
+                                    <i class="fas fa-school fa-3x text-warning mb-2"></i>
+                                </div>
                                 <h5>Verifique a ESCOLA</h5>
-                                <p>Confirme se algum aluno ficou na unidade</p>
+                                <p class="mb-0 text-muted">Confirme se algum aluno ficou na unidade</p>
                             </div>
                         </div>
                     </div>
@@ -42,7 +46,7 @@
                 
                 <div class="alert alert-warning mt-4">
                     <strong>Instruções:</strong>
-                    <ol class="text-start mt-2">
+                    <ol class="text-start mt-2 mb-0">
                         <li>Pare o veículo em local seguro</li>
                         <li>Verifique cuidadosamente toda a van</li>
                         <li>Entre em contato com a escola</li>
@@ -71,7 +75,7 @@
                             <i class="fas fa-flag-checkered"></i> Finalizar Mesmo com Divergência
                         </button>
                     </form>
-                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -104,5 +108,9 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 });
+
+function emitirAlerta(mensagem) {
+    alert(mensagem);
+}
 </script>
 {% endblock %}

@@ -24,13 +24,13 @@
     </div>
 </div>
 
-<div class="row">
-    <div class="col-md-6">
-        <div class="card mb-3">
+<div class="row mb-3">
+    <div class="col-md-6 mb-3">
+        <div class="card h-100">
             <div class="card-header bg-primary text-white">
                 <h5 class="mb-0"><i class="fas fa-hand-peace"></i> Verificação Biométrica</h5>
             </div>
-            <div class="card-body text-center">
+            <div class="card-body text-center d-flex flex-column justify-content-center">
                 <div id="scannerInstrucoes" class="border rounded p-4" style="background: #f8f9fa;">
                     <i class="fas fa-hand-peace fa-4x mb-3 text-primary"></i>
                     <p>Confirme identidade do aluno</p>
@@ -42,13 +42,10 @@
                 
                 <div id="cameraPlaceholder" style="display: none;">
                     <video id="videoCamera" width="100%" height="auto" autoplay playsinline></video>
-                    
                     <canvas id="canvasCamera" style="display: none;"></canvas>
-                    
                     <button class="btn btn-success mt-2" onclick="capturarImagemDaCamera()">
                         <i class="fas fa-camera"></i> Capturar e Validar
                     </button>
-                    
                     <button class="btn btn-danger mt-2" onclick="fecharCamera()">
                         <i class="fas fa-times"></i> Cancelar
                     </button>
@@ -60,56 +57,14 @@
                 </div>
             </div>
         </div>
-        
-        <div class="card mb-3">
-            <div class="card-header bg-warning text-white">
-                <h5 class="mb-0"><i class="fas fa-child"></i> Alunos a bordo</h5>
-            </div>
-            <div class="card-body">
-                {% if registros %}
-                    <div class="list-group">
-                        {% for registro in registros %}
-                        <div class="list-group-item">
-                            <div class="d-flex justify-content-between align-items-center">
-                                <div>
-                                    <small class="text-muted">ID: {{ registro.aluno_id_temporario|slice:":8" }}</small><br>
-                                    <small>Check-in: {{ registro.horario_checkin|date:"H:i:s" }}</small>
-                                    <small class="text-muted d-block">Método: 
-                                        {% if registro.metodo_checkin == 'PALMA' %}
-                                            <i class="fas fa-hand-peace"></i> Palma
-                                        {% elif registro.metodo_checkin == 'QRCODE' %}
-                                            <i class="fas fa-qrcode"></i> QR Code
-                                        {% else %}
-                                            <i class="fas fa-pen"></i> Manual
-                                        {% endif %}
-                                    </small>
-                                </div>
-                                <form method="post" style="display: inline;">
-                                    {% csrf_token %}
-                                    <input type="hidden" name="aluno_id" value="{{ registro.aluno_id_temporario }}">
-                                    <button type="submit" class="btn btn-warning" id="btn-checkout-{{ registro.aluno_id_temporario }}">
-                                        <i class="fas fa-sign-out-alt"></i> Check-out
-                                    </button>
-                                </form>
-                            </div>
-                        </div>
-                        {% endfor %}
-                    </div>
-                {% else %}
-                    <div class="alert alert-success">
-                        <i class="fas fa-check-circle"></i> Todos os alunos já fizeram check-out!
-                    </div>
-                {% endif %}
-            </div>
-        </div>
     </div>
     
-    <div class="col-md-6">
-        <div class="card">
+    <div class="col-md-6 mb-3">
+        <div class="card h-100">
             <div class="card-header bg-info text-white">
                 <h5 class="mb-0"><i class="fas fa-list"></i> Resumo da Rota</h5>
             </div>
-            <div class="card-body">
+            <div class="card-body d-flex flex-column justify-content-between">
                 <table class="table">
                     <tr><th>Total de Alunos:</th><td class="text-end">{{ total_checkins }}</td></tr>
                     <tr><th>Check-outs Realizados:</th><td class="text-end text-success">{{ total_checkouts }}</td></tr>
@@ -127,8 +82,45 @@
     </div>
 </div>
 
-<script>
+<div class="row">
+    <div class="col-12 mb-3">
+        <div class="card">
+            <div class="card-header bg-warning text-white">
+                <h5 class="mb-0"><i class="fas fa-child"></i> Alunos a bordo</h5>
+            </div>
+            <div class="card-body">
+                {% if registros %}
+                    <div class="list-group">
+                        {% for registro in registros %}
+                        <div class="list-group-item">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <strong>{{ registro.nome_aluno_formatado }}</strong><br>
+                                    <small class="text-muted">ID: {{ registro.aluno_id_temporario|slice:":8" }}</small><br>
+                                    <small>Check-in: {{ registro.horario_checkin|date:"H:i:s" }}</small>
+                                    <small class="text-muted d-block">Método: 
+                                        {% if registro.metodo_checkin == 'PALMA' %}
+                                            <i class="fas fa-hand-peace"></i> Palma
+                                        {% else %}
+                                            <i class="fas fa-pen"></i> Manual
+                                        {% endif %}
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="alert alert-success">
+                        <i class="fas fa-check-circle"></i> Todos os alunos já fizeram check-out!
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
 
+<script>
 var streamCamera = null;
 
 function scanearPalma() {
@@ -144,7 +136,7 @@ function scanearPalma() {
                 video.srcObject = stream;
             })
             .catch(function(err) {
-                alert('Erro ao acessar a câmera: ' + err.message + '\nLembre-se: O navegador móvel exige HTTPS para abrir a câmera.');
+                alert('Erro ao acessar a câmera: ' + err.message);
                 fecharCamera();
             });
     } else {
@@ -159,31 +151,22 @@ function capturarImagemDaCamera() {
     var context = canvas.getContext('2d');
 
     if (video.readyState < 2 || !video.videoWidth || video.videoWidth === 0) {
-        alert("A câmera do dispositivo ainda está sincronizando o foco ou hardware. Aguarde um segundo e clique novamente.");
+        alert("Aguarde a câmera sincronizar.");
         return;
     }
 
     var tamanhoQuadrado = Math.min(video.videoWidth, video.videoHeight);
     canvas.width = tamanhoQuadrado;
     canvas.height = tamanhoQuadrado;
-    
     var offsetX = (video.videoWidth - tamanhoQuadrado) / 2;
     var offsetY = (video.videoHeight - tamanhoQuadrado) / 2;
-
     context.drawImage(video, offsetX, offsetY, tamanhoQuadrado, tamanhoQuadrado, 0, 0, tamanhoQuadrado, tamanhoQuadrado);
 
     var imagemBase64 = canvas.toDataURL('image/jpeg', 0.7);
-
-    if (!imagemBase64 || imagemBase64.length < 1000) {
-        alert("Falha na captura: Sensor de vídeo enviou frame vazio. Tente novamente.");
-        return;
-    }
-
     fecharCamera();
     
     document.getElementById('scannerInstrucoes').style.display = 'none';
     document.getElementById('loadingPlaceholder').style.display = 'block';
-    document.getElementById('loadingText').innerText = "Passo 1/2: Extraindo traços da palma...";
 
     fetch('/api/capturar-palma/', { 
         method: 'POST',
@@ -198,14 +181,11 @@ function capturarImagemDaCamera() {
         if (data.success) {
             compararTemplateComBanco(data.template);
         } else {
-            alert('Falha na extração: ' + data.error);
+            alert('Erro: ' + data.error);
             resetarInterface();
         }
     })
-    .catch(error => {
-        alert('Erro de rede na Etapa 1: ' + error);
-        resetarInterface();
-    });
+    .catch(error => { resetarInterface(); });
 }
 
 function fecharCamera() {
@@ -218,43 +198,47 @@ function fecharCamera() {
 }
 
 function compararTemplateComBanco(templateGerado) {
-    document.getElementById('loadingText').innerText = "Passo 2/2: Procurando aluno na van...";
-
+    document.getElementById('loadingText').innerText = "Procurando aluno na van...";
     fetch('/api/ler-biometria/', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
             'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
         },
-        body: JSON.stringify({ 
-            template: templateGerado,
-            sessao_id: '{{ sessao.id }}' 
-        })
+        body: JSON.stringify({ template: templateGerado, sessao_id: '{{ sessao.id }}' })
     })
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            var confirmar = confirm('Biometria correspondente a: ' + data.nome_aluno + '\n\nConfirmar o check-out deste aluno?');
-            if (confirmar) {
-                var btnSubmit = document.getElementById('btn-checkout-' + data.aluno_id);
-                if (btnSubmit) {
-                    btnSubmit.click();
-                } else {
-                    alert('Erro: Formulário do aluno não encontrado.');
-                    resetarInterface();
-                }
-            } else {
-                resetarInterface();
-            }
+            alert('Aluno reconhecido com sucesso: ' + data.nome_aluno);
+            submeterFormularioCheckout(data.aluno_id);
         } else {
+            // Alerta de erro existente
             alert('Aviso: ' + data.error);
             resetarInterface();
         }
-    })
-    .catch(error => {
-        alert('Erro de rede na Etapa 2: ' + error);
-        resetarInterface();
     });
+}
+
+function submeterFormularioCheckout(alunoId) {
+    var form = document.createElement('form');
+    form.method = 'POST';
+    form.action = ''; 
+    
+    var csrf = document.createElement('input');
+    csrf.type = 'hidden';
+    csrf.name = 'csrfmiddlewaretoken';
+    csrf.value = document.querySelector('[name=csrfmiddlewaretoken]').value;
+    form.appendChild(csrf);
+    
+    var idInput = document.createElement('input');
+    idInput.type = 'hidden';
+    idInput.name = 'aluno_id';
+    idInput.value = alunoId;
+    form.appendChild(idInput);
+    
+    document.body.appendChild(form);
+    form.submit();
 }
 
 function resetarInterface() {
@@ -262,14 +246,6 @@ function resetarInterface() {
     document.getElementById('scannerInstrucoes').style.display = 'block';
 }
 
-function emitirAlerta(msg) {
-    alert(msg);
-}
-
-{% if divergencia > 0 %}
-setTimeout(function() {
-    emitirAlerta('{{ divergencia }} aluno(s) ainda não fizeram check-out! Verifique a van!');
-}, 1000);
-{% endif %}
+function emitirAlerta(msg) { alert(msg); }
 </script>
 {% endblock %}

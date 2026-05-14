@@ -15,12 +15,12 @@
 </div>
 
 <div class="row">
-    <div class="col-md-6">
-        <div class="card mb-3">
+    <div class="col-md-6 mb-3">
+        <div class="card h-100 border-primary">
             <div class="card-header bg-primary text-white">
                 <h5 class="mb-0"><i class="fas fa-hand-peace"></i> Reconhecimento de Palma</h5>
             </div>
-            <div class="card-body text-center">
+            <div class="card-body text-center d-flex flex-column justify-content-center">
                 <div id="palmScanner" class="mb-3">
                     <div id="scannerInstrucoes" class="border rounded p-4" style="background: #f8f9fa;">
                         <i class="fas fa-hand-peace fa-4x mb-3 text-primary"></i>
@@ -47,39 +47,43 @@
                     </button>
                 </div>
             </div>
+        </div>
     </div>
     
-    <div class="col-md-6">
-        <div class="card">
+    <div class="col-md-6 mb-3">
+        <div class="card h-100 border-primary d-flex flex-column">
             <div class="card-header bg-primary text-white">
                 <h5 class="mb-0"><i class="fas fa-list"></i> Alunos Registrados</h5>
             </div>
-            <div class="card-body">
-                <div class="table-responsive">
-                    <table class="table table-sm">
-                        <thead>
+            <div class="card-body p-0 flex-grow-1">
+                <div class="table-responsive m-0" style= "max-height: 260px; overflow-y: auto;">
+                    <table class="table table-sm mb-0">
+                        <thead class="sticky-top bg-white shadow-sm">
                             <tr>
-                                <th>ID</th>
-                                <th>Hora</th>
-                                <th>Método</th>
-                                <th>Status</th>
+                                <th class="ps-3 border-bottom-0">Aluno / ID</th>
+                                <th class="border-bottom-0">Hora</th>
+                                <th class="border-bottom-0">Método</th>
+                                <th class="border-bottom-0">Status</th>
                             </tr>
                         </thead>
                         <tbody>
                             {% for registro in registros %}
                             <tr>
-                                <td>{{ registro.aluno_id_temporario|slice:":8" }}</td>
-                                <td>{{ registro.horario_checkin|date:"H:i:s" }}</td>
-                                <td>
+                                <td class="ps-3">
+                                    <strong>{{ registro.nome_aluno_formatado }}</strong><br>
+                                    <small class="text-muted">{{ registro.aluno_id_temporario|slice:":8" }}</small>
+                                </td>
+                                <td class="align-middle">{{ registro.horario_checkin|date:"H:i:s" }}</td>
+                                <td class="align-middle">
                                     {% if registro.metodo_checkin == 'PALMA' %}
                                         <i class="fas fa-hand-peace text-primary" title="Palma"></i>
                                     {% endif %}
                                 </td>
-                                <td>{% if registro.checkout_realizado %}✅{% else %}⏳{% endif %}</td>
+                                <td class="align-middle">{% if registro.checkout_realizado %}✅{% else %}⏳{% endif %}</td>
                             </tr>
                             {% empty %}
                             <tr>
-                                <td colspan="5" class="text-center">Nenhum aluno registrado</td>
+                                <td colspan="5" class="text-center py-4 text-muted">Nenhum aluno registrado</td>
                             </tr>
                             {% endfor %}
                         </tbody>
@@ -198,13 +202,7 @@ function submeterFormularioCheckinGenerico(metodo, payload, nomeAluno) {
         inputPalma.name = 'dados_palma';
         inputPalma.value = payload;
         form.appendChild(inputPalma);
-    } else if (metodo === 'QRCODE') {
-        var inputId = document.createElement('input');
-        inputId.type = 'hidden';
-        inputId.name = 'qrcode_data';
-        inputId.value = payload;
-        form.appendChild(inputId);
-    }
+    } 
     
     var nome = document.createElement('input');
     nome.type = 'hidden';
@@ -216,16 +214,5 @@ function submeterFormularioCheckinGenerico(metodo, payload, nomeAluno) {
     form.submit();
 }
 
-function lerQRCode() {
-    var codigo = document.getElementById('qrcode_input').value;
-    if (codigo) {
-        var confirmar = confirm('QR Code lido: ' + codigo + '\n\nConfirmar check-in?');
-        if (confirmar) {
-            submeterFormularioCheckinGenerico('QRCODE', codigo, 'Aluno QR Code');
-        }
-    } else {
-        alert('Digite ou escaneie o código do QR Code');
-    }
-}
 </script>
 {% endblock %}

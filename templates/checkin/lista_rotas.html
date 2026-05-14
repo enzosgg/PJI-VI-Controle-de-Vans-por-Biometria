@@ -21,7 +21,8 @@
             <div class="card-header bg-success text-white">
                 <h5 class="mb-0"><i class="fas fa-play-circle"></i> Rotas Ativas</h5>
             </div>
-            <div class="card-body">
+
+            <div class="card-body" style="height: 300px; overflow-y: auto;">
                 {% if rotas_ativas %}
                     <div class="list-group">
                         {% for rota in rotas_ativas %}
@@ -52,8 +53,9 @@
         <div class="card">
             <div class="card-header bg-secondary text-white">
                 <h5 class="mb-0"><i class="fas fa-check-circle"></i> Rotas Finalizadas</h5>
-            </div>
-            <div class="card-body">
+            </div> 
+
+            <div class="card-body" style="height: 300px; overflow-y: auto;">
                 {% if rotas_finalizadas %}
                     <div class="list-group">
                         {% for rota in rotas_finalizadas %}

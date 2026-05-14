@@ -6,7 +6,6 @@ from django .utils import timezone
 from django .views .decorators .csrf import csrf_exempt 
 from .models import SessaoRota ,RegistroAluno 
 from .palm_recognition import palm_recognition 
-from .qrcode_utils import qrcode_utils 
 from apps .ocorrencias .views import verificar_esquecimento ,enviar_alertas 
 import uuid 
 import json 
@@ -18,7 +17,7 @@ def dashboard (request ):
     print (f"Usuário: {request .user }")
 
     rotas_ativas =SessaoRota .objects .filter (status ='ATIVA')
-    rotas_finalizadas =SessaoRota .objects .filter (status ='FINALIZADA')[:10 ]
+    rotas_finalizadas =SessaoRota .objects .filter (status ='FINALIZADA').order_by ('-data_fim')[:10 ]
 
     context ={
     'rotas_ativas':rotas_ativas ,
@@ -75,39 +74,39 @@ def checkin_aluno (request ,sessao_id ):
 
         if metodo =='PALMA':
             template_json =request .POST .get ('dados_palma')
-            if template_json and 'landmarks'in template_json :
+            if template_json :
                 registro .palm_template =template_json 
             else :
                 messages .error (request ,'Dados biométricos não recebidos do leitor.')
                 return redirect ('checkin_aluno',sessao_id =sessao_id )
-
-        elif metodo =='QRCODE':
-            qrcode_data =request .POST .get ('qrcode_data')
-            if qrcode_data :
-                registro .qrcode_data =qrcode_data 
 
         registro .checkin_realizado =True 
         registro .horario_checkin =timezone .now ()
         registro .metodo_checkin =metodo 
         registro .save ()
 
-        qrcode_img =None 
-        if metodo =='QRCODE':
-            qrcode_img =qrcode_utils .gerar_qrcode (registro .aluno_id_temporario )
-
         messages .success (request ,f'Check-in realizado: {nome_aluno }')
-
-        if qrcode_img :
-            return JsonResponse ({'success':True ,'qrcode':qrcode_img })
 
         return redirect ('checkin_aluno',sessao_id =sessao_id )
 
-    registros =sessao .registros .filter (checkin_realizado =True )
+    registros_queryset =sessao .registros .filter (checkin_realizado =True ).order_by ('horario_checkin')
+
+    contador_palma =1 
+    registros_processados =[]
+
+    for registro in registros_queryset :
+        if registro .metodo_checkin =='PALMA':
+            registro .nome_aluno_formatado =f"Aluno {contador_palma }"
+            contador_palma +=1 
+        else :
+            registro .nome_aluno_formatado =registro .nome_aluno 
+
+        registros_processados .append (registro )
 
     context ={
     'sessao':sessao ,
-    'registros':registros ,
-    'total_checkins':registros .count ()
+    'registros':registros_processados ,
+    'total_checkins':registros_queryset .count ()
     }
     return render (request ,'checkin/checkin_aluno.html',context )
 
@@ -137,11 +136,24 @@ def checkout_escola (request ,sessao_id ):
 
         return redirect ('checkout_escola',sessao_id =sessao_id )
 
-    registros =sessao .registros .filter (checkin_realizado =True ,checkout_realizado =False )
+    todos_registros_ordenados =sessao .registros .filter (checkin_realizado =True ).order_by ('horario_checkin')
+
+    contador_palma =1 
+    registros_pendentes =[]
+
+    for registro in todos_registros_ordenados :
+        if registro .metodo_checkin =='PALMA':
+            registro .nome_aluno_formatado =f"Aluno {contador_palma }"
+            contador_palma +=1 
+        else :
+            registro .nome_aluno_formatado =registro .nome_aluno 
+
+        if not registro .checkout_realizado :
+            registros_pendentes .append (registro )
 
     context ={
     'sessao':sessao ,
-    'registros':registros ,
+    'registros':registros_pendentes ,
     'total_checkins':sessao .get_total_checkins (),
     'total_checkouts':sessao .get_total_checkouts (),
     'divergencia':sessao .get_divergencia ()
@@ -155,9 +167,7 @@ def finalizar_rota (request ,sessao_id ):
 
     if request .method =='POST':
         divergencia =sessao .get_divergencia ()
-
         motivo =request .POST .get ('motivo')
-
 
         if divergencia >0 and not motivo :
             mensagem =f"ALERTA GRAVE: Rota {sessao .nome_rota } finalizada com {divergencia } aluno(s) sem check-out!"
@@ -176,7 +186,6 @@ def finalizar_rota (request ,sessao_id ):
             'divergencia':divergencia 
             })
 
-
         if motivo :
             from apps .ocorrencias .models import Ocorrencia 
             Ocorrencia .objects .create (
@@ -185,7 +194,6 @@ def finalizar_rota (request ,sessao_id ):
             mensagem =f"Rota finalizada com {divergencia } pendências. Motivo declarado: {motivo }",
             telefone_destino =''
             )
-
 
         sessao .status ='FINALIZADA'
         sessao .data_fim =timezone .now ()
@@ -206,7 +214,7 @@ def finalizar_rota (request ,sessao_id ):
 def listar_rotas (request ):
     """Lista todas as rotas"""
     rotas_ativas =SessaoRota .objects .filter (status ='ATIVA')
-    rotas_finalizadas =SessaoRota .objects .filter (status ='FINALIZADA').order_by ('-data_inicio')[:20 ]
+    rotas_finalizadas =SessaoRota .objects .filter (status ='FINALIZADA').order_by ('-data_fim')[:20 ]
 
     context ={
     'rotas_ativas':rotas_ativas ,
@@ -217,14 +225,23 @@ def listar_rotas (request ):
 @login_required 
 @csrf_exempt 
 def api_capturar_palma (request ):
+    """Captura a palma"""
     if request .method =='POST':
         try :
             dados =json .loads (request .body )
             imagem_base64 =dados .get ('imagem')
             if imagem_base64 :
-                template =palm_recognition .extract_features (imagem_base64 )
-                if template :
-                    return JsonResponse ({'success':True ,'template':template })
+                template_json =palm_recognition .imagem_infos (imagem_base64 )
+
+                if template_json :
+                    template_dict =json .loads (template_json )
+                    if template_dict .get ("error")=="DORSO_DETECTADO":
+                         return JsonResponse ({
+                         'success':False ,
+                         'error':'Dorso da mão detectado. Por favor, mostre a PALMA da mão virada para a câmera.'
+                         })
+
+                    return JsonResponse ({'success':True ,'template':template_json })
                 else :
                     return JsonResponse ({'success':False ,'error':'Mão não detectada'})
         except Exception as e :
@@ -233,6 +250,7 @@ def api_capturar_palma (request ):
 
 @csrf_exempt 
 def api_sensor_status (request ):
+    """Status do sensor"""
     return JsonResponse ({
     'ativo':True ,
     'tipo':'palma',
@@ -242,6 +260,7 @@ def api_sensor_status (request ):
 
 @csrf_exempt 
 def api_ler_biometria (request ):
+    """Leitor de biometria"""
     if request .method =='POST':
         try :
             dados =json .loads (request .body )
@@ -255,7 +274,7 @@ def api_ler_biometria (request ):
             alunos_na_van =sessao .registros .filter (checkin_realizado =True ,checkout_realizado =False )
 
             for registro in alunos_na_van :
-                match ,score =palm_recognition .compare_templates (template_atual ,registro .palm_template )
+                match ,score =palm_recognition .comparador_de_palmas (template_atual ,registro .palm_template )
                 if match :
                     return JsonResponse ({
                     'success':True ,
@@ -263,15 +282,8 @@ def api_ler_biometria (request ):
                     'nome_aluno':registro .nome_aluno 
                     })
 
-            if alunos_na_van .exists ():
-                primeiro_aluno =alunos_na_van .first ()
-                return JsonResponse ({
-                'success':True ,
-                'aluno_id':primeiro_aluno .aluno_id_temporario ,
-                'nome_aluno':f"{primeiro_aluno .nome_aluno } (Match Simulado)"
-                })
-
             return JsonResponse ({'success':False ,'error':'Aluno não reconhecido.'})
+
         except Exception as e :
             return JsonResponse ({'success':False ,'error':str (e )})
     return JsonResponse ({'error':'Método não permitido'},status =405 )

@@ -17,68 +17,87 @@ class PalmRecognition :
         min_detection_confidence =0.5 
         )
 
-    def _decode_base64 (self ,base64_string ):
+    def conversor (self ,conversor_base64 ):
+        """Converte a imagem de base64 para interpretável"""
         try :
-            if not base64_string :
+            if not conversor_base64 :
                 return None 
 
-            if ','in base64_string :
-                base64_string =base64_string .split (',')[1 ]
+            if ','in conversor_base64 :
+                conversor_base64 =conversor_base64 .split (',')[1 ]
 
-            base64_string =re .sub (r'[^a-zA-Z0-9+/]','',base64_string )
+            conversor_base64 =re .sub (r'[^a-zA-Z0-9+/]','',conversor_base64 )
+            conversor_base64 +="="*((4 -len (conversor_base64 )%4 )%4 )
+            imagem_data =base64 .b64decode (conversor_base64 )
+            np_array =np .frombuffer (imagem_data ,np .uint8 )
+            imagem =cv2 .imdecode (np_array ,cv2 .IMREAD_COLOR )
 
-            base64_string +="="*((4 -len (base64_string )%4 )%4 )
-
-            img_data =base64 .b64decode (base64_string )
-
-            np_arr =np .frombuffer (img_data ,np .uint8 )
-
-            img =cv2 .imdecode (np_arr ,cv2 .IMREAD_COLOR )
-
-            if img is None or img .size ==0 :
+            if imagem is None or imagem .size ==0 :
                 return None 
 
-            return img 
+            return imagem 
         except Exception as e :
             return None 
 
-    def extract_features (self ,image_data ):
-        img =self ._decode_base64 (image_data )
-        if img is None :
+    def imagem_infos (self ,image_data ):
+        """Captura as características da imagem"""
+        imagem =self .conversor (image_data )
+        if imagem is None :
             return None 
 
-        if len (img .shape )!=3 or img .shape [0 ]<50 or img .shape [1 ]<50 :
+        if len (imagem .shape )!=3 or imagem .shape [0 ]<50 or imagem .shape [1 ]<50 :
             return None 
 
-        img_rgb =cv2 .cvtColor (img ,cv2 .COLOR_BGR2RGB )
-
-        img_rgb =np .ascontiguousarray (img_rgb )
-
-        img_rgb .flags .writeable =False 
+        imagem_rgb =cv2 .cvtColor (imagem ,cv2 .COLOR_BGR2RGB )
+        imagem_rgb =np .ascontiguousarray (imagem_rgb )
+        imagem_rgb .flags .writeable =False 
 
         try :
-            results =self .hands .process (img_rgb )
+            resultados =self .hands .process (imagem_rgb )
         except Exception as e :
             return None 
         finally :
-            img_rgb .flags .writeable =True 
+            imagem_rgb .flags .writeable =True 
 
-        if not results or not results .multi_hand_landmarks :
+        if not resultados or not resultados .multi_hand_landmarks :
             return None 
 
-        landmarks_list =[]
-        for hand_landmarks in results .multi_hand_landmarks :
-            for landmark in hand_landmarks .landmark :
-                landmarks_list .append ({'x':landmark .x ,'y':landmark .y ,'z':landmark .z })
+        lado_da_mao =resultados .multi_handedness [0 ].classification [0 ].label 
+        referencias_da_palma =resultados .multi_hand_landmarks [0 ]
+        referencias_lista =[]
+
+        for r in referencias_da_palma .landmark :
+            referencias_lista .append ({'x':r .x ,'y':r .y ,'z':r .z })
+
+        p0 =referencias_lista [0 ]
+        p5 =referencias_lista [5 ]
+        p17 =referencias_lista [17 ]
+        v1_x =p5 ['x']-p0 ['x']
+        v1_y =p5 ['y']-p0 ['y']
+        v2_x =p17 ['x']-p0 ['x']
+        v2_y =p17 ['y']-p0 ['y']
+        cross_z =(v1_x *v2_y )-(v1_y *v2_x )
+        costas_da_mao =False 
+
+        if lado_da_mao =='Right'and cross_z <0 :
+            costas_da_mao =True 
+        elif lado_da_mao =='Left'and cross_z >0 :
+            costas_da_mao =True 
+
+        if costas_da_mao :
+            return json .dumps ({"error":"DORSO_DETECTADO"})
 
         template ={
         'simulated':False ,
         'timestamp':time .time (),
-        'landmarks':landmarks_list 
+        'lado_da_mao':lado_da_mao ,
+        'rs':referencias_lista 
         }
+
         return json .dumps (template )
 
-    def compare_templates (self ,template1 ,template2 ,threshold =0.15 ):
+    def comparador_de_palmas (self ,template1 ,template2 ,threshold =0.15 ):
+        """Compara a palma do Checkin com a do Checkout"""
         if not template1 or not template2 :
             return False ,0 
 
@@ -86,8 +105,15 @@ class PalmRecognition :
             t1 =json .loads (template1 )
             t2 =json .loads (template2 )
 
-            l1 =t1 .get ('landmarks',[])
-            l2 =t2 .get ('landmarks',[])
+            if "error"in t1 or "error"in t2 :
+                 return False ,0 
+
+            if t1 .get ('lado_da_mao')and t2 .get ('lado_da_mao'):
+                if t1 .get ('lado_da_mao')!=t2 .get ('lado_da_mao'):
+                    return False ,0 
+
+            l1 =t1 .get ('rs',[])
+            l2 =t2 .get ('rs',[])
 
             if not l1 or not l2 :
                 return False ,0 
@@ -98,7 +124,6 @@ class PalmRecognition :
                 distancias .append (dist )
 
             media_distancia =sum (distancias )/len (distancias )
-
             match =media_distancia <threshold 
             score =1.0 -media_distancia 
 
