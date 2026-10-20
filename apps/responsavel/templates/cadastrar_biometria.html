@@ -1,0 +1,126 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Cadastrar Biometria - {{ aluno.nome }}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card shadow-sm">
+            <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="fas fa-camera"></i> Escanear Palma: {{ aluno.nome }}</h5>
+                <a href="{% url 'responsavel' %}" class="btn btn-sm btn-outline-light"><i class="fas fa-arrow-left"></i> Voltar</a>
+            </div>
+            
+            <div class="card-body text-center bg-light">
+                <p class="text-muted">Posicione a <b>palma da mão</b> bem aberta e de frente para a câmera.</p>
+                
+                
+                <div class="position-relative d-inline-block border border-3 border-secondary rounded mb-3" style="overflow: hidden; max-width: 100%;">
+                    <video id="videoElement" autoplay playsinline style="width: 640px; max-width: 100%; transform: scaleX(-1);"></video>
+                    
+                    
+                    <div id="loadingOverlay" class="position-absolute top-0 start-0 w-100 h-100 bg-dark bg-opacity-75 d-flex flex-column justify-content-center align-items-center text-white d-none">
+                        <div class="spinner-border mb-2" role="status"></div>
+                        <span>Analisando geometria...</span>
+                    </div>
+                </div>
+                
+                
+                <canvas id="canvasElement" class="d-none"></canvas>
+
+                <div>
+                    <button id="btnCapturar" class="btn btn-primary btn-lg px-5">
+                        <i class="fas fa-camera"></i> Capturar Imagem
+                    </button>
+                </div>
+                
+                <div id="statusMessage" class="mt-3 fw-bold"></div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const video = document.getElementById('videoElement');
+    const canvas = document.getElementById('canvasElement');
+    const ctx = canvas.getContext('2d');
+    const btnCapturar = document.getElementById('btnCapturar');
+    const loadingOverlay = document.getElementById('loadingOverlay');
+    const statusMessage = document.getElementById('statusMessage');
+
+    async function startCamera() {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });
+            video.srcObject = stream;
+        } catch (err) {
+            statusMessage.innerHTML = "<span class='text-danger'>Erro ao acessar a câmera. Verifique as permissões.</span>";
+            console.error(err);
+        }
+    }
+
+    startCamera();
+
+    btnCapturar.addEventListener('click', () => {
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+        
+        loadingOverlay.classList.remove('d-none');
+        btnCapturar.disabled = true;
+        statusMessage.innerHTML = "";
+
+        fetch("{% url 'api_capturar_palma' %}", {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ imagem: dataUrl })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                salvarBiometriaNoBanco(data.template);
+            } else {
+                throw new Error(data.error || 'Não foi possível ler a palma. Tente novamente.');
+            }
+        })
+        .catch(err => {
+            loadingOverlay.classList.add('d-none');
+            btnCapturar.disabled = false;
+            statusMessage.innerHTML = `<span class='text-danger'><i class="fas fa-times-circle"></i> ${err.message}</span>`;
+        });
+    });
+
+    function salvarBiometriaNoBanco(templateJson) {
+        fetch("{% url 'api_salvar_biometria' %}", {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                aluno_id: '{{ aluno.id }}', 
+                template: templateJson 
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            loadingOverlay.classList.add('d-none');
+            if (data.success) {
+                statusMessage.innerHTML = "<span class='text-success'><i class='fas fa-check-circle'></i> Biometria registrada com sucesso! Redirecionando...</span>";
+                setTimeout(() => {
+                    window.location.href = "{% url 'responsavel' %}";
+                }, 2000);
+            } else {
+                throw new Error(data.error || 'Erro ao salvar no banco de dados.');
+            }
+        })
+        .catch(err => {
+            loadingOverlay.classList.add('d-none');
+            btnCapturar.disabled = false;
+            statusMessage.innerHTML = `<span class='text-danger'><i class="fas fa-times-circle"></i> ${err.message}</span>`;
+        });
+    }
+</script>
+{% endblock %}

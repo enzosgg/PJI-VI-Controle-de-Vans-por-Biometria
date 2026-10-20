@@ -1,0 +1,68 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Área do Responsável - VanCheck{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="alert alert-info">
+            <h4><i class="fas fa-user-shield"></i> Painel do Responsável</h4>
+            <p class="mb-0">Bem-vindo, {{ user.responsavel.nome }}! Gerencie os dados dos seus dependentes abaixo.</p>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card shadow-sm border-primary">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0"><i class="fas fa-users"></i> Meus Alunos</h5>
+            </div>
+            <div class="card-body">
+                {% if alunos %}
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Nome do Aluno</th>
+                                    <th>Rota Associada</th>
+                                    <th>Status Biometria</th>
+                                    <th>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for aluno in alunos %}
+                                <tr>
+                                    <td><strong>{{ aluno.nome }}</strong></td>
+                                    <td>{{ aluno.rota.nome_rota|default:"Nenhuma rota" }}</td>
+                                    <td>
+                                        
+                                        {% if aluno.biometria.template_biometrico %}
+                                            <span class="badge bg-success"><i class="fas fa-check-circle"></i> Cadastrada</span>
+                                        {% else %}
+                                            <span class="badge bg-warning text-dark"><i class="fas fa-exclamation-circle"></i> Pendente</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <a href="{% url 'cadastrar_biometria' aluno.id %}" class="btn btn-sm btn-primary">
+                                            <i class="fas fa-hand-paper"></i> Cadastrar Palma
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <div class="text-center py-4">
+                        <i class="fas fa-user-graduate fa-3x text-muted mb-3"></i>
+                        <h5>Nenhum aluno associado.</h5>
+                        <p class="text-muted">Entre em contato com a escola ou o motorista para vincular os alunos ao seu perfil.</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

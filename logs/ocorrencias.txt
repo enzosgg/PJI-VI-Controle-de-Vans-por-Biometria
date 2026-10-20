@@ -1,0 +1,2 @@
+{"data": "24/09/2026 12:21:58", "tipo": "ALERTA_GERAL", "mensagem": "11", "telefone": "111", "motorista": "responsavel"}
+{"data": "24/09/2026 12:29:04", "tipo": "PROBLEMA_VAN", "mensagem": "oba", "telefone": "11", "motorista": "Sem nome"}
