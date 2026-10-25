@@ -1,0 +1,693 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Mapa da Van - {{ aluno.nome }}{% endblock %}
+
+{% block content %}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css">
+<style>
+    .mapa-wrap {
+        position: relative; border-radius: 14px; overflow: hidden;
+        border: 1px solid rgba(0, 0, 0, .15);
+    }
+    #mapa { height: 68vh; min-height: 440px; width: 100%; background: #dfe5ea; }
+
+    .mapa-barra {
+        position: absolute; z-index: 1000; top: 10px; left: 10px; right: 10px;
+        display: flex; align-items: center; gap: 12px;
+        padding: 10px 14px; border-radius: 14px; color: #fff;
+        box-shadow: 0 4px 14px rgba(0, 0, 0, .35);
+        transition: background .3s;
+    }
+    .estado-ok { background: #0d6efd; }
+    .estado-espera { background: #495057; }
+    .estado-aviso { background: #fd7e14; }
+    .estado-fim { background: #198754; }
+    .mapa-barra .icone { font-size: 28px; line-height: 1; }
+    .mapa-barra .titulo { font-weight: 700; line-height: 1.2; }
+    .mapa-barra .sub { font-size: .85rem; opacity: .9; }
+    .mapa-barra .eta { text-align: center; min-width: 58px; }
+    .mapa-barra .eta .num { font-size: 28px; font-weight: 800; line-height: 1; }
+    .mapa-barra .eta .un { font-size: .75rem; text-transform: uppercase; opacity: .9; }
+
+
+    .mapa-botoes {
+        position: absolute; z-index: 1000; right: 10px; bottom: 28px;
+        display: flex; flex-direction: column; gap: 8px;
+    }
+    .mapa-botoes button {
+        width: 46px; height: 46px; border-radius: 50%; border: 0; background: #fff;
+        font-size: 20px; line-height: 1; box-shadow: 0 2px 8px rgba(0, 0, 0, .35); cursor: pointer;
+    }
+    .mapa-botoes button.d-none { display: none; }
+
+    .mk-reset { background: none; border: 0; }
+    .mk-bolha {
+        width: 44px; height: 44px; border-radius: 50%; background: #fff;
+        border: 3px solid #0d6efd; display: flex; align-items: center; justify-content: center;
+        font-size: 26px; line-height: 1; box-shadow: 0 2px 6px rgba(0, 0, 0, .4);
+    }
+    .mk-van { position: relative; width: 56px; height: 84px; }
+    .mk-van .mk-bolha { position: absolute; left: 6px; top: 0; }
+    .mk-van .mk-seta {
+        position: absolute; left: 12px; top: 48px; width: 32px; height: 32px;
+        transition: transform .5s linear; filter: drop-shadow(0 2px 3px rgba(0, 0, 0, .45));
+    }
+
+    .mini-avatar {
+        display: inline-flex; width: 36px; height: 36px; border-radius: 50%;
+        border: 3px solid #0d6efd; background: #fff; align-items: center; justify-content: center;
+        font-size: 20px; vertical-align: middle;
+    }
+</style>
+
+<div class="row justify-content-center">
+    <div class="col-lg-10">
+
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h5 class="mb-0"><span class="mini-avatar">{{ aluno.avatar_emoji }}</span> Van de {{ aluno.nome }}</h5>
+            <a href="{% url 'responsavel' %}" class="btn btn-sm btn-outline-secondary">
+                <i class="fas fa-arrow-left"></i> Voltar
+            </a>
+        </div>
+
+        <div class="mapa-wrap shadow-sm">
+            <div id="barraInfo" class="mapa-barra estado-espera">
+                <div id="barraIcone" class="icone">🚐</div>
+                <div class="flex-grow-1">
+                    <div id="barraTitulo" class="titulo">Carregando...</div>
+                    <div id="barraSub" class="sub"></div>
+                </div>
+                <div id="barraEta" class="eta d-none">
+                    <div id="barraEtaNum" class="num">--</div>
+                    <div class="un">min</div>
+                </div>
+            </div>
+
+            <div id="mapa"></div>
+
+            <div class="mapa-botoes">
+                <button type="button" id="btnSeguir" class="d-none" title="Seguir a van">📍</button>
+                <button type="button" id="btnTema" title="Alternar mapa claro/escuro">🌓</button>
+            </div>
+        </div>
+
+        <details id="painelLocais" class="card shadow-sm mt-3" {% if abrir_painel %}open{% endif %}>
+            <summary class="card-header fw-bold" style="cursor: pointer;">
+                <i class="fas fa-map-pin"></i> Casa e escola do aluno
+            </summary>
+            <div class="card-body">
+                <p class="text-muted small mb-3">
+                    Escolha o que quer definir, busque o endereço (ou toque no mapa) e ajuste o pino arrastando.
+                    A van usa esses dois pontos para traçar o trajeto.
+                </p>
+
+                <div class="btn-group mb-3" role="group" aria-label="Tipo de local">
+                    <input type="radio" class="btn-check" name="tipoLocal" id="tipoCasa" value="casa" checked>
+                    <label class="btn btn-outline-primary" for="tipoCasa">🏠 Casa</label>
+                    <input type="radio" class="btn-check" name="tipoLocal" id="tipoEscola" value="escola">
+                    <label class="btn btn-outline-primary" for="tipoEscola">🏫 Escola</label>
+                </div>
+
+                <div id="campoNomeEscola" class="mb-3 d-none">
+                    <label for="inputNomeEscola" class="form-label">Nome da escola</label>
+                    <input type="text" id="inputNomeEscola" class="form-control" maxlength="150" placeholder="Ex.: Escola Municipal Monteiro Lobato">
+                </div>
+
+                <div class="input-group mb-2">
+                    <input type="text" id="inputBusca" class="form-control" placeholder="Buscar endereço. Ex.: Rua das Flores 100, São Paulo">
+                    <button type="button" id="btnBuscar" class="btn btn-primary"><i class="fas fa-search"></i> Buscar</button>
+                </div>
+
+                <div id="listaResultados" class="list-group mb-2"></div>
+                <div id="mensagemLocal" class="small mb-3"></div>
+
+                <div class="d-flex flex-wrap gap-3 align-items-center">
+                    <button type="button" id="btnSalvarLocal" class="btn btn-success" disabled>
+                        <i class="fas fa-save"></i> Salvar local
+                    </button>
+                    <div class="small text-muted">
+                        <div>🏠 Casa: <span id="resumoCasa">{% if aluno.casa_definida %}{{ aluno.endereco|default:"definida no mapa" }}{% else %}não definida{% endif %}</span></div>
+                        <div>🏫 Escola: <span id="resumoEscola">{% if aluno.escola %}{{ aluno.escola.nome }}{% else %}não definida{% endif %}</span></div>
+                    </div>
+                </div>
+            </div>
+        </details>
+
+        <p class="text-muted small mt-3 mb-0">
+            Mapa: © OpenStreetMap contributors. Trajeto e tempo estimados pelo OSRM. O tempo é uma estimativa e pode variar com o trânsito.
+        </p>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+{{ config|json_script:"mapa-config" }}
+<script>
+(function () {
+    const config = JSON.parse(document.getElementById('mapa-config').textContent);
+
+    const barra = document.getElementById('barraInfo');
+    const barraIcone = document.getElementById('barraIcone');
+    const barraTitulo = document.getElementById('barraTitulo');
+    const barraSub = document.getElementById('barraSub');
+    const barraEta = document.getElementById('barraEta');
+    const barraEtaNum = document.getElementById('barraEtaNum');
+    const btnSeguir = document.getElementById('btnSeguir');
+    const btnTema = document.getElementById('btnTema');
+
+    const POLITICA_REFERER = 'strict-origin-when-cross-origin';
+
+    const claroOsm = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        referrerPolicy: POLITICA_REFERER,
+        attribution: '&copy; OpenStreetMap'
+    });
+    const claroReserva = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+        maxZoom: 19,
+        subdomains: 'abcd',
+        referrerPolicy: POLITICA_REFERER,
+        attribution: '&copy; OpenStreetMap &copy; CARTO'
+    });
+    const escuro = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+        maxZoom: 19,
+        subdomains: 'abcd',
+        referrerPolicy: POLITICA_REFERER,
+        attribution: '&copy; OpenStreetMap &copy; CARTO'
+    });
+
+    let claro = claroOsm;
+    let temaEscuro = false;
+    try { temaEscuro = localStorage.getItem('mapaTemaEscuro') === '1'; } catch (e) {}
+
+    const map = L.map('mapa', { zoomControl: false, layers: [temaEscuro ? escuro : claro] })
+        .setView([-23.55, -46.63], 12);
+    L.control.zoom({ position: 'bottomleft' }).addTo(map);
+    setTimeout(function () { map.invalidateSize(); }, 250);
+
+    let errosOsm = 0;
+    claroOsm.on('tileerror', function () {
+        errosOsm += 1;
+        if (errosOsm < 4 || claro === claroReserva) return;
+        const estavaVisivel = map.hasLayer(claroOsm);
+        claro = claroReserva;
+        if (estavaVisivel) {
+            map.removeLayer(claroOsm);
+            map.addLayer(claroReserva);
+        }
+    });
+
+    btnTema.addEventListener('click', function () {
+        temaEscuro = !temaEscuro;
+        if (temaEscuro) { map.removeLayer(claro); map.addLayer(escuro); }
+        else { map.removeLayer(escuro); map.addLayer(claro); }
+        try { localStorage.setItem('mapaTemaEscuro', temaEscuro ? '1' : '0'); } catch (e) {}
+    });
+
+    const baseLine = L.polyline([], { color: '#8d99ae', weight: 7, opacity: 0.75 }).addTo(map);
+    const restanteContorno = L.polyline([], { color: '#ffffff', weight: 12, opacity: 0.95 }).addTo(map);
+    const restanteLine = L.polyline([], { color: '#0d6efd', weight: 7, opacity: 1 }).addTo(map);
+    const trilhaLine = L.polyline([], { color: '#6c757d', weight: 4, opacity: 0.9, dashArray: '6 8' }).addTo(map);
+
+    const circuloPrecisao = L.circle([0, 0], {
+        radius: 0, color: '#0d6efd', weight: 1, fillColor: '#0d6efd', fillOpacity: 0.12, interactive: false
+    });
+
+    function texto(t) {
+        const el = document.createElement('span');
+        el.textContent = t;
+        return el;
+    }
+
+    function bolhaHtml(emoji, cor) {
+        return '<div class="mk-bolha" style="border-color:' + cor + '">' + emoji + '</div>';
+    }
+
+    function formatarDistancia(m) {
+        if (m < 1000) return Math.round(m) + ' m';
+        return (m / 1000).toFixed(1).replace('.', ',') + ' km';
+    }
+
+    function formatarTempo(seg) {
+        if (seg < 60) return seg + ' s';
+        return Math.round(seg / 60) + ' min';
+    }
+
+    const casaLL = config.casa ? [config.casa.lat, config.casa.lng] : null;
+    const escolaLL = config.escola ? [config.escola.lat, config.escola.lng] : null;
+
+    function iconeCasa(alunoNaVan) {
+
+        return L.divIcon({
+            className: 'mk-reset',
+            iconSize: [44, 44],
+            iconAnchor: [22, 22],
+            html: alunoNaVan ? bolhaHtml('🏠', '#6f42c1') : bolhaHtml(config.avatar, '#0d6efd')
+        });
+    }
+
+    let casaMarker = null;
+    if (casaLL) {
+        casaMarker = L.marker(casaLL, { icon: iconeCasa(false) }).addTo(map);
+        casaMarker.bindTooltip(texto(config.casa.endereco || 'Casa de ' + config.alunoNome));
+    }
+
+    let escolaMarker = null;
+    if (escolaLL) {
+        escolaMarker = L.marker(escolaLL, {
+            icon: L.divIcon({
+                className: 'mk-reset',
+                iconSize: [44, 44],
+                iconAnchor: [22, 22],
+                html: bolhaHtml('🏫', '#198754')
+            })
+        }).addTo(map);
+        escolaMarker.bindTooltip(texto(config.escola.nome));
+    }
+
+    const vanIcon = L.divIcon({
+        className: 'mk-reset',
+        iconSize: [56, 84],
+        iconAnchor: [28, 64],
+        html:
+            '<div class="mk-van">' +
+                '<div class="mk-bolha mk-van-bolha" style="border-color:#fd7e14">🚐</div>' +
+                '<svg class="mk-seta" viewBox="0 0 32 32">' +
+                    '<path d="M16 2 L28 28 L16 22 L4 28 Z" fill="#0d6efd" stroke="#ffffff" stroke-width="2" stroke-linejoin="round"/>' +
+                '</svg>' +
+            '</div>'
+    });
+
+    let vanMarker = null;
+    let animacao = null;
+
+    function elementosVan() {
+        const el = vanMarker ? vanMarker.getElement() : null;
+        if (!el) return {};
+        return { bolha: el.querySelector('.mk-van-bolha'), seta: el.querySelector('.mk-seta') };
+    }
+
+    function atualizarVisualVan(embarcado, direcao) {
+        const e = elementosVan();
+        if (e.bolha) {
+            e.bolha.textContent = embarcado ? config.avatar : '🚐';
+            e.bolha.style.borderColor = embarcado ? '#0d6efd' : '#fd7e14';
+        }
+        if (e.seta && direcao !== null && direcao !== undefined) {
+            e.seta.style.transform = 'rotate(' + direcao + 'deg)';
+        }
+    }
+
+    function moverVan(destino) {
+        if (!vanMarker) {
+            vanMarker = L.marker(destino, { icon: vanIcon, zIndexOffset: 1000 }).addTo(map);
+            return true;
+        }
+        const de = vanMarker.getLatLng();
+        const inicio = performance.now();
+        const duracao = 1000;
+        if (animacao) cancelAnimationFrame(animacao);
+
+        function passo(agora) {
+            const k = Math.min(1, (agora - inicio) / duracao);
+            vanMarker.setLatLng([
+                de.lat + (destino[0] - de.lat) * k,
+                de.lng + (destino[1] - de.lng) * k
+            ]);
+            if (k < 1) animacao = requestAnimationFrame(passo);
+        }
+        animacao = requestAnimationFrame(passo);
+        return false;
+    }
+
+    function removerVan() {
+        if (vanMarker) { map.removeLayer(vanMarker); vanMarker = null; }
+        if (map.hasLayer(circuloPrecisao)) map.removeLayer(circuloPrecisao);
+        restanteLine.setLatLngs([]);
+        restanteContorno.setLatLngs([]);
+        trilhaLine.setLatLngs([]);
+    }
+
+    async function buscarRota(pontos) {
+        const coords = pontos.map(function (p) { return p[1] + ',' + p[0]; }).join(';');
+        const url = 'https://router.project-osrm.org/route/v1/driving/' + coords +
+                    '?overview=full&geometries=geojson';
+        try {
+            const resposta = await fetch(url);
+            const dados = await resposta.json();
+            if (dados.code !== 'Ok' || !dados.routes.length) return null;
+            const rota = dados.routes[0];
+            return {
+                pontos: rota.geometry.coordinates.map(function (c) { return [c[1], c[0]]; }),
+                duracao: rota.duration,
+                distancia: rota.distance
+            };
+        } catch (e) {
+            return null;
+        }
+    }
+
+    let baseTipo = null;
+    async function garantirTrajetoBase(tipo) {
+        if (!casaLL || !escolaLL || baseTipo === tipo) return;
+        baseTipo = tipo;
+        const pontos = tipo === 'VOLTA' ? [escolaLL, casaLL] : [casaLL, escolaLL];
+        const rota = await buscarRota(pontos);
+        baseLine.setLatLngs(rota ? rota.pontos : pontos);
+    }
+
+    const S = {
+        erro: null, ativa: false, desembarcou: false, embarcado: false,
+        destino: null, posicao: null, eta: null
+    };
+
+    function setBarra(estado, icone, titulo, sub, etaMin) {
+        barra.className = 'mapa-barra estado-' + estado;
+        barraIcone.textContent = icone;
+        barraTitulo.textContent = titulo;
+        barraSub.textContent = sub || '';
+        if (etaMin === null || etaMin === undefined) {
+            barraEta.classList.add('d-none');
+        } else {
+            barraEta.classList.remove('d-none');
+            barraEtaNum.textContent = etaMin;
+        }
+    }
+
+    function tituloDoTrajeto() {
+        if (!S.destino) return 'Van em rota';
+        if (S.embarcado) {
+            return S.destino.tipo === 'escola' ? 'Em viagem para a escola' : 'Em viagem para casa';
+        }
+        return S.destino.tipo === 'casa' ? 'Van indo buscar ' + config.alunoNome
+                                         : 'Van indo à escola buscar ' + config.alunoNome;
+    }
+
+    function renderBarra() {
+        if (S.erro) return setBarra('aviso', '⚠️', S.erro, 'Tentando novamente...', null);
+        if (!S.ativa) return setBarra('espera', '🚐', 'Van fora de rota',
+            'Você verá a van aqui quando o motorista iniciar a rota.', null);
+        if (S.desembarcou) return setBarra('fim', '✅', config.alunoNome + ' chegou ao destino',
+            'O aluno já desembarcou da van.', null);
+        if (!S.posicao) return setBarra('espera', '📡', 'Rota em andamento',
+            'Aguardando o sinal de GPS da van...', null);
+        if (S.posicao.segundos > 45) return setBarra('aviso', '📡', 'Sinal da van perdido',
+            'Última posição há ' + formatarTempo(S.posicao.segundos), null);
+        if (!S.destino) return setBarra('ok', '🚐', 'Van em rota',
+            'Defina a casa e a escola abaixo para ver o trajeto.', null);
+
+        const partes = [];
+        if (S.embarcado) partes.push(config.alunoNome + ' está na van');
+        if (S.eta) partes.push(formatarDistancia(S.eta.distancia));
+        setBarra('ok', '🚐', tituloDoTrajeto(), partes.join(' · '), S.eta ? S.eta.min : null);
+    }
+
+    let seguir = true;
+    let primeiraVez = true;
+
+    map.on('dragstart', function () {
+        seguir = false;
+        btnSeguir.classList.remove('d-none');
+    });
+
+    btnSeguir.addEventListener('click', function () {
+        seguir = true;
+        btnSeguir.classList.add('d-none');
+        if (vanMarker) map.panTo(vanMarker.getLatLng(), { animate: true });
+    });
+
+    function ajustar(pontos) {
+        const validos = pontos.filter(Boolean);
+        if (validos.length === 1) {
+            map.setView(validos[0], 16);
+        } else if (validos.length > 1) {
+            map.fitBounds(validos, { paddingTopLeft: [40, 110], paddingBottomRight: [40, 50] });
+        }
+    }
+
+    let etaDestino = null;
+    let etaPos = null;
+    let etaQuando = 0;
+
+    async function atualizarEta(pos, destino) {
+        const mudouDestino = destino.tipo !== etaDestino;
+        const moveu = !etaPos || map.distance(etaPos, pos) > 80;
+        const passou = Date.now() - etaQuando > 20000;
+        if (!mudouDestino && !moveu && !passou) return;
+
+        etaDestino = destino.tipo;
+        etaPos = pos;
+        etaQuando = Date.now();
+
+        const alvo = [destino.lat, destino.lng];
+        const rota = await buscarRota([pos, alvo]);
+
+        if (rota) {
+            restanteContorno.setLatLngs(rota.pontos);
+            restanteLine.setLatLngs(rota.pontos);
+            S.eta = { min: Math.max(1, Math.round(rota.duracao / 60)), distancia: rota.distancia };
+        } else {
+
+            restanteContorno.setLatLngs([pos, alvo]);
+            restanteLine.setLatLngs([pos, alvo]);
+            S.eta = null;
+        }
+        renderBarra();
+    }
+
+    async function atualizar() {
+        if (document.hidden) return;
+
+        let d;
+        try {
+            const resposta = await fetch(config.urls.posicao, {
+                credentials: 'same-origin',
+                headers: { 'Accept': 'application/json' }
+            });
+            d = await resposta.json();
+        } catch (e) {
+            S.erro = 'Sem conexão com o servidor';
+            renderBarra();
+            return;
+        }
+
+        if (!d.success) {
+            S.erro = d.error || 'Não foi possível carregar a posição da van';
+            renderBarra();
+            return;
+        }
+        S.erro = null;
+
+        S.ativa = !!d.ativa;
+        if (!S.ativa) {
+            S.desembarcou = false; S.embarcado = false; S.destino = null; S.posicao = null; S.eta = null;
+            removerVan();
+            if (casaMarker) casaMarker.setIcon(iconeCasa(false));
+            renderBarra();
+            return;
+        }
+
+        S.desembarcou = !!d.desembarcou;
+        S.embarcado = !!d.embarcado;
+        S.destino = d.destino;
+        S.posicao = d.posicao;
+
+        garantirTrajetoBase(d.rota.tipo);
+        if (casaMarker) casaMarker.setIcon(iconeCasa(S.embarcado));
+
+        if (!d.posicao) {
+            removerVan();
+            renderBarra();
+            return;
+        }
+
+        const pos = [d.posicao.lat, d.posicao.lng];
+        const eraPrimeira = moverVan(pos);
+        trilhaLine.setLatLngs(d.trilha || []);
+
+        if (d.posicao.precisao) {
+            circuloPrecisao.setLatLng(pos).setRadius(d.posicao.precisao);
+            if (!map.hasLayer(circuloPrecisao)) circuloPrecisao.addTo(map);
+        } else if (map.hasLayer(circuloPrecisao)) {
+            map.removeLayer(circuloPrecisao);
+        }
+
+        requestAnimationFrame(function () {
+            atualizarVisualVan(S.embarcado, d.posicao.direcao);
+        });
+
+        if (S.destino && !S.desembarcou) {
+            atualizarEta(pos, S.destino);
+        } else {
+            restanteLine.setLatLngs([]);
+            restanteContorno.setLatLngs([]);
+            S.eta = null;
+        }
+        renderBarra();
+
+        if (primeiraVez || eraPrimeira) {
+            primeiraVez = false;
+            ajustar([pos, S.destino ? [S.destino.lat, S.destino.lng] : null]);
+        } else if (seguir) {
+            map.panTo(pos, { animate: true, duration: 1 });
+        }
+    }
+
+    ajustar([casaLL, escolaLL]);
+    garantirTrajetoBase('IDA');
+    atualizar();
+    setInterval(atualizar, 5000);
+
+    const painel = document.getElementById('painelLocais');
+    const campoNomeEscola = document.getElementById('campoNomeEscola');
+    const inputNomeEscola = document.getElementById('inputNomeEscola');
+    const inputBusca = document.getElementById('inputBusca');
+    const btnBuscar = document.getElementById('btnBuscar');
+    const listaResultados = document.getElementById('listaResultados');
+    const mensagemLocal = document.getElementById('mensagemLocal');
+    const btnSalvarLocal = document.getElementById('btnSalvarLocal');
+
+    let tipoEdicao = 'casa';
+    let pin = null;
+    let pinLL = null;
+    let enderecoEscolhido = '';
+
+    const iconePin = L.divIcon({
+        className: 'mk-reset',
+        iconSize: [44, 44],
+        iconAnchor: [22, 22],
+        html: bolhaHtml('📍', '#dc3545')
+    });
+
+    if (config.escola) inputNomeEscola.value = config.escola.nome;
+
+    function mensagem(txt, erro) {
+        mensagemLocal.className = 'small mb-3 ' + (erro ? 'text-danger' : 'text-muted');
+        mensagemLocal.textContent = txt;
+    }
+
+    document.querySelectorAll('input[name="tipoLocal"]').forEach(function (radio) {
+        radio.addEventListener('change', function (e) {
+            tipoEdicao = e.target.value;
+            campoNomeEscola.classList.toggle('d-none', tipoEdicao !== 'escola');
+        });
+    });
+
+    function definirPin(latlng) {
+        pinLL = [latlng.lat, latlng.lng];
+        if (!pin) {
+            pin = L.marker(latlng, { draggable: true, icon: iconePin, zIndexOffset: 2000 }).addTo(map);
+            pin.on('dragend', function () {
+                const p = pin.getLatLng();
+                pinLL = [p.lat, p.lng];
+            });
+        } else {
+            pin.setLatLng(latlng);
+        }
+        btnSalvarLocal.disabled = false;
+    }
+
+    map.on('click', function (e) {
+        if (!painel.open) return;
+        definirPin(e.latlng);
+        mensagem('Pino posicionado. Arraste para ajustar e clique em "Salvar local".');
+    });
+
+    async function buscar() {
+        const consulta = inputBusca.value.trim();
+        if (consulta.length < 3) {
+            mensagem('Digite pelo menos 3 letras para buscar.', true);
+            return;
+        }
+        mensagem('Buscando...');
+        listaResultados.textContent = '';
+
+        const url = 'https://nominatim.openstreetmap.org/search?format=jsonv2&limit=5' +
+                    '&accept-language=pt-BR&countrycodes=br&q=' + encodeURIComponent(consulta);
+        try {
+            const resposta = await fetch(url, {
+                headers: { 'Accept': 'application/json' },
+                referrerPolicy: POLITICA_REFERER
+            });
+            const itens = await resposta.json();
+
+            if (!itens.length) {
+                mensagem('Nenhum resultado. Tente incluir a cidade ou toque direto no mapa.', true);
+                return;
+            }
+            mensagem('Escolha um resultado:');
+
+            itens.forEach(function (item) {
+                const botao = document.createElement('button');
+                botao.type = 'button';
+                botao.className = 'list-group-item list-group-item-action small';
+                botao.textContent = item.display_name;
+                botao.addEventListener('click', function () {
+                    const ll = L.latLng(parseFloat(item.lat), parseFloat(item.lon));
+                    definirPin(ll);
+                    map.setView(ll, 17);
+                    enderecoEscolhido = item.display_name;
+                    if (tipoEdicao === 'escola' && !inputNomeEscola.value.trim()) {
+                        inputNomeEscola.value = item.name || item.display_name.split(',')[0];
+                    }
+                    listaResultados.textContent = '';
+                    mensagem('Pino posicionado. Arraste para ajustar e clique em "Salvar local".');
+                });
+                listaResultados.appendChild(botao);
+            });
+        } catch (e) {
+            mensagem('Não foi possível buscar agora. Toque no mapa para posicionar o pino.', true);
+        }
+    }
+
+    btnBuscar.addEventListener('click', buscar);
+    inputBusca.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') { e.preventDefault(); buscar(); }
+    });
+
+    btnSalvarLocal.addEventListener('click', async function () {
+        if (!pinLL) return;
+
+        const corpo = {
+            aluno_id: config.alunoId,
+            tipo: tipoEdicao,
+            latitude: pinLL[0],
+            longitude: pinLL[1],
+            endereco: enderecoEscolhido || inputBusca.value.trim()
+        };
+
+        if (tipoEdicao === 'escola') {
+            corpo.nome = inputNomeEscola.value.trim();
+            if (!corpo.nome) {
+                mensagem('Informe o nome da escola.', true);
+                return;
+            }
+        }
+
+        btnSalvarLocal.disabled = true;
+        mensagem('Salvando...');
+
+        try {
+            const resposta = await fetch(config.urls.salvarLocal, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': config.csrf
+                },
+                body: JSON.stringify(corpo)
+            });
+            const dados = await resposta.json();
+
+            if (!dados.success) throw new Error(dados.error || 'Não foi possível salvar.');
+
+            mensagem('Local salvo! Atualizando o mapa...');
+            setTimeout(function () { window.location.reload(); }, 700);
+        } catch (e) {
+            btnSalvarLocal.disabled = false;
+            mensagem(e.message, true);
+        }
+    });
+})();
+</script>
+{% endblock %}

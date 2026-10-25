@@ -4,6 +4,8 @@
 {% block title %}Check-out - {{ sessao.nome_rota }}{% endblock %}
 
 {% block content %}
+{% csrf_token %}
+
 <div class="row">
     <div class="col-12">
         <div class="alert alert-warning">
@@ -21,6 +23,12 @@
             </div>
             {% endif %}
         </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        {% include 'gps_van.html' %}
     </div>
 </div>
 
@@ -186,7 +194,10 @@ function capturarImagemDaCamera() {
             resetarInterface();
         }
     })
-    .catch(error => { resetarInterface(); });
+    .catch(error => {
+        alert('Falha na comunicação com o servidor. Se a sessão expirou, recarregue a página e entre novamente.');
+        resetarInterface();
+    });
 }
 
 function fecharCamera() {
@@ -211,12 +222,19 @@ function compararTemplateComBanco(templateGerado) {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            alert('Aluno reconhecido com sucesso: ' + data.nome_aluno);
+            if (!confirm('Aluno reconhecido: ' + data.nome_aluno + '.\nConfirmar check-out?')) {
+                resetarInterface();
+                return;
+            }
             submeterFormularioCheckout(data.aluno_id);
         } else {
             alert('Aviso: ' + data.error);
             resetarInterface();
         }
+    })
+    .catch(error => {
+        alert('Falha na comunicação com o servidor. Se a sessão expirou, recarregue a página e entre novamente.');
+        resetarInterface();
     });
 }
 

@@ -27,7 +27,7 @@ DEBUG = True
 
 ALLOWED_HOSTS = []
 
-
+SECURE_REFERRER_POLICY = 'strict-origin-when-cross-origin'
 # Application definition
 
 INSTALLED_APPS = [
@@ -130,6 +130,9 @@ MAILERS = {
         'BACKEND': 'django.core.mail.backends.console.EmailBackend',
     },
 }
+
+ALLOWED_HOSTS = ['localhost', '127.0.0.1', '.trycloudflare.com']
+CSRF_TRUSTED_ORIGINS = ['https://*.trycloudflare.com']
 
 LOGIN_URL = 'login'
 LOGIN_REDIRECT_URL = 'dashboard'

@@ -4,6 +4,33 @@
 {% block title %}Área do Responsável - VanCheck{% endblock %}
 
 {% block content %}
+<style>
+    .avatar-btn {
+        width: 46px; height: 46px; border-radius: 50%;
+        border: 3px solid #0d6efd; background: #fff;
+        display: inline-flex; align-items: center; justify-content: center;
+        font-size: 24px; line-height: 1; cursor: pointer; padding: 0;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, .25);
+        transition: transform .15s;
+    }
+    .avatar-btn:hover { transform: scale(1.08); }
+
+    .avatar-dialog {
+        border: 0; border-radius: 14px; padding: 20px;
+        width: 92%; max-width: 420px;
+        box-shadow: 0 10px 40px rgba(0, 0, 0, .35);
+    }
+    .avatar-dialog::backdrop { background: rgba(0, 0, 0, .45); }
+
+    .avatar-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+    .avatar-opcao {
+        font-size: 30px; line-height: 1; padding: 10px 0;
+        border: 3px solid transparent; border-radius: 14px; background: #f1f3f5; cursor: pointer;
+    }
+    .avatar-opcao:hover { background: #e7f1ff; }
+    .avatar-opcao.selecionado { border-color: #0d6efd; background: #e7f1ff; }
+</style>
+
 <div class="row mb-4">
     <div class="col-12">
         <div class="alert alert-info">
@@ -25,8 +52,8 @@
                         <table class="table table-hover align-middle">
                             <thead class="table-light">
                                 <tr>
-                                    <th>Nome do Aluno</th>
-                                    <th>Rota Associada</th>
+                                    <th>Aluno</th>
+                                    <th>Rota</th>
                                     <th>Status Biometria</th>
                                     <th>Ações</th>
                                 </tr>
@@ -34,20 +61,59 @@
                             <tbody>
                                 {% for aluno in alunos %}
                                 <tr>
-                                    <td><strong>{{ aluno.nome }}</strong></td>
-                                    <td>{{ aluno.rota.nome_rota|default:"Nenhuma rota" }}</td>
                                     <td>
-                                        
-                                        {% if aluno.biometria.template_biometrico %}
-                                            <span class="badge bg-success"><i class="fas fa-check-circle"></i> Cadastrada</span>
+                                        <div class="d-flex align-items-center gap-2">
+                                            <button type="button" class="avatar-btn"
+                                                    data-aluno-id="{{ aluno.id }}"
+                                                    data-aluno-nome="{{ aluno.nome }}"
+                                                    data-avatar="{{ aluno.avatar }}"
+                                                    title="Trocar avatar de {{ aluno.nome }}">
+                                                <span class="avatar-emoji">{{ aluno.avatar_emoji }}</span>
+                                            </button>
+                                            <strong>{{ aluno.nome }}</strong>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        {% if aluno.rota_info %}
+                                            {% if aluno.rota_info.tipo == 'IDA' %}
+                                                <span class="badge bg-primary">🏫 Ida para a escola</span>
+                                            {% else %}
+                                                <span class="badge bg-info text-dark">🏠 Volta para casa</span>
+                                            {% endif %}
+                                            <div class="small mt-1">{{ aluno.rota_info.nome_rota }}</div>
+                                            <div class="small text-success fw-bold">● Em andamento agora</div>
+                                        {% else %}
+                                            <span class="text-muted">Nenhuma rota em andamento</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if aluno.biometria.completa %}
+                                            <span class="badge bg-success"><i class="fas fa-check-circle"></i> Cadastrada (2 palmas)</span>
+                                        {% elif aluno.biometria.template_direita or aluno.biometria.template_esquerda %}
+                                            <span class="badge bg-info text-dark">
+                                                <i class="fas fa-adjust"></i> Incompleta
+                                                ({% if aluno.biometria.template_direita %}só direita{% else %}só esquerda{% endif %})
+                                            </span>
                                         {% else %}
                                             <span class="badge bg-warning text-dark"><i class="fas fa-exclamation-circle"></i> Pendente</span>
                                         {% endif %}
                                     </td>
                                     <td>
-                                        <a href="{% url 'cadastrar_biometria' aluno.id %}" class="btn btn-sm btn-primary">
-                                            <i class="fas fa-hand-paper"></i> Cadastrar Palma
-                                        </a>
+                                        <div class="d-flex flex-wrap gap-2">
+                                            <a href="{% url 'cadastrar_biometria' aluno.id %}" class="btn btn-sm btn-primary">
+                                                <i class="fas fa-hand-paper"></i>
+                                                {% if aluno.biometria.completa %}
+                                                    Recadastrar Palmas
+                                                {% elif aluno.biometria.template_direita or aluno.biometria.template_esquerda %}
+                                                    Completar Cadastro
+                                                {% else %}
+                                                    Cadastrar Palmas
+                                                {% endif %}
+                                            </a>
+                                            <a href="{% url 'mapa_aluno' aluno.id %}" class="btn btn-sm btn-success">
+                                                <i class="fas fa-map-marked-alt"></i> Ver van no mapa
+                                            </a>
+                                        </div>
                                     </td>
                                 </tr>
                                 {% endfor %}
@@ -65,4 +131,99 @@
         </div>
     </div>
 </div>
+
+<dialog id="avatarDialog" class="avatar-dialog"
+        data-url="{% url 'api_salvar_avatar' %}"
+        data-csrf="{{ csrf_token }}">
+    <h5 class="mb-1">Avatar de <span id="avatarNomeAluno"></span></h5>
+    <p class="text-muted small mb-3">Ele aparece no mapa quando você acompanha a van.</p>
+
+    <div class="avatar-grid">
+        {% for av in avatares %}
+            <button type="button" class="avatar-opcao" data-avatar="{{ av.chave }}" title="{{ av.nome }}">{{ av.emoji }}</button>
+        {% endfor %}
+    </div>
+
+    <div id="avatarMensagem" class="small mt-3"></div>
+
+    <div class="text-end mt-3">
+        <button type="button" id="avatarFechar" class="btn btn-secondary btn-sm">Fechar</button>
+    </div>
+</dialog>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    (function () {
+        const dialogo = document.getElementById('avatarDialog');
+        const nomeAluno = document.getElementById('avatarNomeAluno');
+        const mensagem = document.getElementById('avatarMensagem');
+        const opcoes = dialogo.querySelectorAll('.avatar-opcao');
+        const urlSalvar = dialogo.dataset.url;
+        const csrfToken = dialogo.dataset.csrf;
+
+        let botaoAtual = null;
+
+        function marcarSelecionado(chave) {
+            opcoes.forEach(function (op) {
+                op.classList.toggle('selecionado', op.dataset.avatar === chave);
+            });
+        }
+
+        document.querySelectorAll('.avatar-btn').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                botaoAtual = btn;
+                nomeAluno.textContent = btn.dataset.alunoNome;
+                mensagem.textContent = '';
+                marcarSelecionado(btn.dataset.avatar);
+                dialogo.showModal();
+            });
+        });
+
+        opcoes.forEach(function (op) {
+            op.addEventListener('click', async function () {
+                if (!botaoAtual) return;
+                mensagem.className = 'small mt-3 text-muted';
+                mensagem.textContent = 'Salvando...';
+
+                try {
+                    const resposta = await fetch(urlSalvar, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': csrfToken
+                        },
+                        body: JSON.stringify({
+                            aluno_id: botaoAtual.dataset.alunoId,
+                            avatar: op.dataset.avatar
+                        })
+                    });
+                    const dados = await resposta.json();
+
+                    if (!dados.success) {
+                        throw new Error(dados.error || 'Não foi possível salvar.');
+                    }
+
+                    botaoAtual.dataset.avatar = dados.avatar;
+                    botaoAtual.querySelector('.avatar-emoji').textContent = dados.emoji;
+                    marcarSelecionado(dados.avatar);
+                    mensagem.className = 'small mt-3 text-success';
+                    mensagem.textContent = 'Avatar salvo!';
+                    setTimeout(function () { dialogo.close(); }, 600);
+                } catch (err) {
+                    mensagem.className = 'small mt-3 text-danger';
+                    mensagem.textContent = err.message;
+                }
+            });
+        });
+
+        document.getElementById('avatarFechar').addEventListener('click', function () {
+            dialogo.close();
+        });
+
+        dialogo.addEventListener('click', function (e) {
+            if (e.target === dialogo) dialogo.close();
+        });
+    })();
+</script>
 {% endblock %}

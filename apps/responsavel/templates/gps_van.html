@@ -1,0 +1,180 @@
+{# Compartilha a localização da van com os responsáveis. Requer a variável "sessao" no contexto. #}
+<div id="gpsVanConfig" class="d-none"
+     data-url="{% url 'api_enviar_posicao' %}"
+     data-sessao="{{ sessao.id }}"
+     data-csrf="{{ csrf_token }}"></div>
+
+<div id="gpsVanCard" class="alert alert-secondary d-flex justify-content-between align-items-center py-2 mb-3">
+    <div>
+        <i class="fas fa-satellite-dish"></i>
+        <strong>Localização da van:</strong>
+        <span id="gpsVanStatus">desligada</span>
+    </div>
+    <button type="button" id="gpsVanBtn" class="btn btn-sm btn-success">Ativar localização</button>
+</div>
+
+<script>
+(function () {
+    const cfg = document.getElementById('gpsVanConfig').dataset;
+    const card = document.getElementById('gpsVanCard');
+    const status = document.getElementById('gpsVanStatus');
+    const btn = document.getElementById('gpsVanBtn');
+
+    const INTERVALO_ENVIO = 5000;
+
+    let watchId = null;
+    let timer = null;
+    let wakeLock = null;
+    let enviando = false;
+    let ultima = null;
+    let referencia = null;
+
+    function mostrar(texto, classe) {
+        status.textContent = texto;
+        card.className = 'alert ' + classe + ' d-flex justify-content-between align-items-center py-2 mb-3';
+    }
+
+    function distanciaM(a, b) {
+        const R = 6371000;
+        const rad = Math.PI / 180;
+        const dLat = (b.lat - a.lat) * rad;
+        const dLng = (b.lng - a.lng) * rad;
+        const x = Math.sin(dLat / 2) ** 2 +
+                  Math.cos(a.lat * rad) * Math.cos(b.lat * rad) * Math.sin(dLng / 2) ** 2;
+        return 2 * R * Math.asin(Math.sqrt(x));
+    }
+
+    function direcaoGraus(a, b) {
+        const rad = Math.PI / 180;
+        const y = Math.sin((b.lng - a.lng) * rad) * Math.cos(b.lat * rad);
+        const x = Math.cos(a.lat * rad) * Math.sin(b.lat * rad) -
+                  Math.sin(a.lat * rad) * Math.cos(b.lat * rad) * Math.cos((b.lng - a.lng) * rad);
+        return (Math.atan2(y, x) / rad + 360) % 360;
+    }
+
+    function aoReceberPosicao(p) {
+        const c = p.coords;
+        const atual = { lat: c.latitude, lng: c.longitude, vel: c.speed, dir: null };
+
+        if (c.heading !== null && !isNaN(c.heading)) {
+            atual.dir = c.heading;
+        } else if (referencia && distanciaM(referencia, atual) > 8) {
+
+            atual.dir = direcaoGraus(referencia, atual);
+        } else if (ultima) {
+            atual.dir = ultima.dir;
+        }
+
+        if (!referencia || distanciaM(referencia, atual) > 8) {
+            referencia = atual;
+        }
+        ultima = atual;
+    }
+
+    function aoFalharPosicao(err) {
+        if (err.code === 1) {
+            pararTudo();
+            mostrar('permissão negada — libere a localização no navegador', 'alert-danger');
+        } else {
+            mostrar('sem sinal de GPS...', 'alert-warning');
+        }
+    }
+
+    async function enviar() {
+        if (!ultima || enviando) return;
+        enviando = true;
+        try {
+            const resposta = await fetch(cfg.url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': cfg.csrf
+                },
+                body: JSON.stringify({
+                    sessao_id: cfg.sessao,
+                    latitude: ultima.lat,
+                    longitude: ultima.lng,
+                    direcao: ultima.dir,
+                    velocidade: ultima.vel
+                })
+            });
+
+            if (resposta.status === 404) {
+                pararTudo();
+                mostrar('rota não está mais ativa', 'alert-secondary');
+                return;
+            }
+
+            const dados = await resposta.json();
+            if (dados.success) {
+                mostrar('compartilhando (último envio ' + new Date().toLocaleTimeString('pt-BR') + ')', 'alert-success');
+            } else {
+                mostrar('erro ao enviar: ' + (dados.error || 'tente novamente'), 'alert-warning');
+            }
+        } catch (e) {
+            mostrar('sem conexão — tentando novamente...', 'alert-warning');
+        } finally {
+            enviando = false;
+        }
+    }
+
+    async function manterTelaLigada() {
+        try {
+            if ('wakeLock' in navigator) {
+                wakeLock = await navigator.wakeLock.request('screen');
+            }
+        } catch (e) { /* nem todo aparelho suporta */ }
+    }
+
+    function iniciar() {
+        if (!navigator.geolocation) {
+            mostrar('este navegador não suporta localização', 'alert-danger');
+            return;
+        }
+        if (!window.isSecureContext) {
+            mostrar('a localização só funciona em HTTPS', 'alert-danger');
+            return;
+        }
+
+        mostrar('procurando sinal de GPS...', 'alert-warning');
+        watchId = navigator.geolocation.watchPosition(aoReceberPosicao, aoFalharPosicao, {
+            enableHighAccuracy: true,
+            maximumAge: 2000,
+            timeout: 15000
+        });
+        timer = setInterval(enviar, INTERVALO_ENVIO);
+        manterTelaLigada();
+
+        btn.textContent = 'Pausar localização';
+        btn.className = 'btn btn-sm btn-outline-danger';
+    }
+
+    function pararTudo() {
+        if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+        if (timer !== null) clearInterval(timer);
+        if (wakeLock) { try { wakeLock.release(); } catch (e) {} }
+        watchId = null;
+        timer = null;
+        wakeLock = null;
+        btn.textContent = 'Ativar localização';
+        btn.className = 'btn btn-sm btn-success';
+    }
+
+    btn.addEventListener('click', function () {
+        if (watchId === null) {
+            iniciar();
+        } else {
+            pararTudo();
+            mostrar('pausada', 'alert-secondary');
+        }
+    });
+
+    document.addEventListener('visibilitychange', function () {
+        if (watchId !== null && document.visibilityState === 'visible') {
+            manterTelaLigada();
+        }
+    });
+
+    iniciar();
+})();
+</script>

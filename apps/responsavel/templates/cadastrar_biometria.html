@@ -8,25 +8,41 @@
     <div class="col-md-8">
         <div class="card shadow-sm">
             <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
-                <h5 class="mb-0"><i class="fas fa-camera"></i> Escanear Palma: {{ aluno.nome }}</h5>
+                <h5 class="mb-0"><i class="fas fa-camera"></i> Escanear Palmas: {{ aluno.nome }}</h5>
                 <a href="{% url 'responsavel' %}" class="btn btn-sm btn-outline-light"><i class="fas fa-arrow-left"></i> Voltar</a>
             </div>
-            
+
             <div class="card-body text-center bg-light">
-                <p class="text-muted">Posicione a <b>palma da mão</b> bem aberta e de frente para a câmera.</p>
-                
-                
+
+                <div id="biometriaConfig" class="d-none"
+                     data-aluno-id="{{ aluno.id }}"
+                     data-csrf="{{ csrf_token }}"
+                     data-url-capturar="{% url 'api_capturar_palma' %}"
+                     data-url-salvar="{% url 'api_salvar_biometria' %}"
+                     data-url-voltar="{% url 'responsavel' %}"
+                     data-tem-direita="{{ tem_direita|yesno:'true,false' }}"
+                     data-tem-esquerda="{{ tem_esquerda|yesno:'true,false' }}"></div>
+
+                <div class="mb-3">
+                    <span id="badgeDireita" class="badge rounded-pill {% if tem_direita %}bg-success{% else %}bg-secondary{% endif %} me-2">
+                        <i class="fas fa-hand-paper"></i> Direita
+                    </span>
+                    <span id="badgeEsquerda" class="badge rounded-pill {% if tem_esquerda %}bg-success{% else %}bg-secondary{% endif %}">
+                        <i class="fas fa-hand-paper"></i> Esquerda
+                    </span>
+                </div>
+
+                <p class="text-muted" id="instrucao"></p>
+
                 <div class="position-relative d-inline-block border border-3 border-secondary rounded mb-3" style="overflow: hidden; max-width: 100%;">
                     <video id="videoElement" autoplay playsinline style="width: 640px; max-width: 100%; transform: scaleX(-1);"></video>
-                    
-                    
+
                     <div id="loadingOverlay" class="position-absolute top-0 start-0 w-100 h-100 bg-dark bg-opacity-75 d-flex flex-column justify-content-center align-items-center text-white d-none">
                         <div class="spinner-border mb-2" role="status"></div>
                         <span>Analisando geometria...</span>
                     </div>
                 </div>
-                
-                
+
                 <canvas id="canvasElement" class="d-none"></canvas>
 
                 <div>
@@ -34,7 +50,7 @@
                         <i class="fas fa-camera"></i> Capturar Imagem
                     </button>
                 </div>
-                
+
                 <div id="statusMessage" class="mt-3 fw-bold"></div>
             </div>
         </div>
@@ -44,83 +60,128 @@
 
 {% block extra_js %}
 <script>
+    const config = document.getElementById('biometriaConfig').dataset;
+
+    const alunoId = config.alunoId;
+    const csrfToken = config.csrf;
+    const urlCapturar = config.urlCapturar;
+    const urlSalvar = config.urlSalvar;
+    const urlVoltar = config.urlVoltar;
+
     const video = document.getElementById('videoElement');
     const canvas = document.getElementById('canvasElement');
     const ctx = canvas.getContext('2d');
     const btnCapturar = document.getElementById('btnCapturar');
     const loadingOverlay = document.getElementById('loadingOverlay');
     const statusMessage = document.getElementById('statusMessage');
+    const instrucao = document.getElementById('instrucao');
+
+    const badges = {
+        direita: document.getElementById('badgeDireita'),
+        esquerda: document.getElementById('badgeEsquerda')
+    };
+    const classesBadge = {
+        direita: ' me-2',
+        esquerda: ''
+    };
+
+    const cadastrado = {
+        direita: config.temDireita === 'true',
+        esquerda: config.temEsquerda === 'true'
+    };
+
+    if (cadastrado.direita && cadastrado.esquerda) {
+        cadastrado.direita = false;
+        cadastrado.esquerda = false;
+        badges.direita.className = 'badge rounded-pill bg-secondary' + classesBadge.direita;
+        badges.esquerda.className = 'badge rounded-pill bg-secondary' + classesBadge.esquerda;
+    }
+
+    let maoAtual = !cadastrado.direita ? 'direita' : 'esquerda';
+
+    function atualizarInstrucao() {
+        const nome = maoAtual === 'direita' ? 'DIREITA' : 'ESQUERDA';
+        instrucao.innerHTML = 'Posicione a <b>palma da mão ' + nome + '</b> bem aberta e de frente para a câmera.';
+    }
+    atualizarInstrucao();
 
     async function startCamera() {
         try {
-            const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });
+            const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
             video.srcObject = stream;
         } catch (err) {
             statusMessage.innerHTML = "<span class='text-danger'>Erro ao acessar a câmera. Verifique as permissões.</span>";
             console.error(err);
         }
     }
-
     startCamera();
 
-    btnCapturar.addEventListener('click', () => {
+    function postJSON(url, body) {
+        return fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            },
+            body: JSON.stringify(body)
+        }).then(function (response) { return response.json(); });
+    }
+
+    function mostrarErro(err) {
+        loadingOverlay.classList.add('d-none');
+        btnCapturar.disabled = false;
+        statusMessage.innerHTML = '<span class="text-danger"><i class="fas fa-times-circle"></i> ' + err.message + '</span>';
+    }
+
+    btnCapturar.addEventListener('click', function () {
         canvas.width = video.videoWidth;
         canvas.height = video.videoHeight;
-        
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        
         const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
-        
+
         loadingOverlay.classList.remove('d-none');
         btnCapturar.disabled = true;
-        statusMessage.innerHTML = "";
+        statusMessage.innerHTML = '';
 
-        fetch("{% url 'api_capturar_palma' %}", {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ imagem: dataUrl })
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                salvarBiometriaNoBanco(data.template);
-            } else {
-                throw new Error(data.error || 'Não foi possível ler a palma. Tente novamente.');
-            }
-        })
-        .catch(err => {
-            loadingOverlay.classList.add('d-none');
-            btnCapturar.disabled = false;
-            statusMessage.innerHTML = `<span class='text-danger'><i class="fas fa-times-circle"></i> ${err.message}</span>`;
-        });
+        postJSON(urlCapturar, { imagem: dataUrl, mao: maoAtual })
+            .then(function (data) {
+                if (data.success) {
+                    salvarBiometriaNoBanco(data.template);
+                } else {
+                    throw new Error(data.error || 'Não foi possível ler a palma. Tente novamente.');
+                }
+            })
+            .catch(mostrarErro);
     });
 
     function salvarBiometriaNoBanco(templateJson) {
-        fetch("{% url 'api_salvar_biometria' %}", {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-                aluno_id: '{{ aluno.id }}', 
-                template: templateJson 
-            })
+        postJSON(urlSalvar, {
+            aluno_id: alunoId,
+            mao: maoAtual,
+            template: templateJson
         })
-        .then(response => response.json())
-        .then(data => {
+        .then(function (data) {
             loadingOverlay.classList.add('d-none');
-            if (data.success) {
-                statusMessage.innerHTML = "<span class='text-success'><i class='fas fa-check-circle'></i> Biometria registrada com sucesso! Redirecionando...</span>";
-                setTimeout(() => {
-                    window.location.href = "{% url 'responsavel' %}";
-                }, 2000);
-            } else {
+            if (!data.success) {
                 throw new Error(data.error || 'Erro ao salvar no banco de dados.');
             }
+
+            cadastrado[maoAtual] = true;
+            badges[maoAtual].className = 'badge rounded-pill bg-success' + classesBadge[maoAtual];
+
+            if (cadastrado.direita && cadastrado.esquerda) {
+                statusMessage.innerHTML = "<span class='text-success'><i class='fas fa-check-circle'></i> As duas palmas foram registradas! Redirecionando...</span>";
+                btnCapturar.disabled = true;
+                setTimeout(function () { window.location.href = urlVoltar; }, 2000);
+            } else {
+                const salva = maoAtual;
+                maoAtual = maoAtual === 'direita' ? 'esquerda' : 'direita';
+                atualizarInstrucao();
+                statusMessage.innerHTML = "<span class='text-success'><i class='fas fa-check-circle'></i> Palma " + salva + " registrada. Agora a outra mão.</span>";
+                btnCapturar.disabled = false;
+            }
         })
-        .catch(err => {
-            loadingOverlay.classList.add('d-none');
-            btnCapturar.disabled = false;
-            statusMessage.innerHTML = `<span class='text-danger'><i class="fas fa-times-circle"></i> ${err.message}</span>`;
-        });
+        .catch(mostrarErro);
     }
 </script>
 {% endblock %}

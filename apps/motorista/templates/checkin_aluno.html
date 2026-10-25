@@ -4,6 +4,8 @@
 {% block title %}Check-in - {{ sessao.nome_rota }}{% endblock %}
 
 {% block content %}
+{% csrf_token %}
+
 <div class="row">
     <div class="col-12">
         <div class="alert alert-info">
@@ -11,6 +13,12 @@
             <p>Tipo: {{ sessao.get_tipo_display }} | Início: {{ sessao.data_inicio|date:"H:i:s" }}</p>
             <p>Check-ins realizados: <strong>{{ total_checkins }}</strong></p>
         </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        {% include 'gps_van.html' %}
     </div>
 </div>
 
@@ -84,7 +92,7 @@
                             </tr>
                             {% empty %}
                             <tr>
-                                <td colspan="5" class="text-center py-4 text-muted">Nenhum aluno registrado</td>
+                                <td colspan="4" class="text-center py-4 text-muted">Nenhum aluno registrado</td>
                             </tr>
                             {% endfor %}
                         </tbody>
@@ -165,7 +173,7 @@ function capturarImagemDaCamera() {
         }
     })
     .catch(error => {
-        alert('Falha na comunicação com o servidor: ' + error);
+        alert('Falha na comunicação com o servidor. Se a sessão expirou, recarregue a página e entre novamente.');
     });
 }
 
@@ -181,11 +189,17 @@ function compararTemplateComBanco(templateGerado) {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
+            if (!confirm('Aluno reconhecido: ' + data.nome_aluno + '.\nConfirmar check-in?')) {
+                return;
+            }
             fecharCamera();
             submeterFormularioCheckin(data.aluno_id);
         } else {
             alert('Aviso: ' + data.error);
         }
+    })
+    .catch(error => {
+        alert('Falha na comunicação com o servidor. Se a sessão expirou, recarregue a página e entre novamente.');
     });
 }
 
